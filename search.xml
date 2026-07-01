@@ -4,6 +4,31 @@
   
     
     <entry>
+      <title>房间支付方式管理</title>
+      <link href="/2026/07/01/%E6%88%BF%E9%97%B4%E6%94%AF%E4%BB%98%E6%96%B9%E5%BC%8F%E7%AE%A1%E7%90%86/"/>
+      <url>/2026/07/01/%E6%88%BF%E9%97%B4%E6%94%AF%E4%BB%98%E6%96%B9%E5%BC%8F%E7%AE%A1%E7%90%86/</url>
+      
+        <content type="html"><![CDATA[<p>a</p><p>开始第一部分——<strong>房间支付方式管理</strong>的开发学习</p><h1 id="开发前准备"><a href="#开发前准备" class="headerlink" title="开发前准备"></a>开发前准备</h1><ul><li>有无<strong>接口文档</strong><ul><li><strong>有</strong>接口文档。拿到接口文档后，要和领导沟通好，对接人是谁（提前说好有问题找谁）</li><li><strong>无</strong>接口文档。进一步询问细节，不要自己去做</li></ul></li></ul><h1 id="开发步骤"><a href="#开发步骤" class="headerlink" title="开发步骤"></a>开发步骤</h1><h2 id="1-找到对应的数据库"><a href="#1-找到对应的数据库" class="headerlink" title="1. 找到对应的数据库"></a>1. 找到对应的数据库</h2><p><strong>payment_type</strong> 表</p><p><img src="http://cdn.gcblog.fun/%E5%B0%9A%E5%BA%AD%E5%85%AC%E5%AF%93/2.%20%E6%88%BF%E9%97%B4%E6%94%AF%E4%BB%98%E6%96%B9%E5%BC%8F%E7%AE%A1%E7%90%86/image-20260701203843435.png" alt="payment_type"></p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 开发 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> Java 尚庭公寓 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>搭建后端环境</title>
       <link href="/2026/07/01/%E6%90%AD%E5%BB%BA%E5%90%8E%E7%AB%AF%E7%8E%AF%E5%A2%83/"/>
       <url>/2026/07/01/%E6%90%AD%E5%BB%BA%E5%90%8E%E7%AB%AF%E7%8E%AF%E5%A2%83/</url>
