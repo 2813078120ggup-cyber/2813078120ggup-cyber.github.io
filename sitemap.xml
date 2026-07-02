@@ -65,6 +65,13 @@
 
   
   <url>
+    <loc>https://gcblog.fun/tags/%E6%97%A5%E8%AE%B0/</loc>
+    <lastmod>2026-07-02</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  
+  <url>
     <loc>https://gcblog.fun/tags/Java/</loc>
     <lastmod>2026-07-02</lastmod>
     <changefreq>weekly</changefreq>
@@ -78,24 +85,17 @@
     <priority>0.2</priority>
   </url>
   
-  <url>
-    <loc>https://gcblog.fun/tags/%E6%97%A5%E8%AE%B0/</loc>
-    <lastmod>2026-07-02</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.2</priority>
-  </url>
-  
 
   
   <url>
-    <loc>https://gcblog.fun/categories/%E5%BC%80%E5%8F%91/</loc>
+    <loc>https://gcblog.fun/categories/%E7%94%9F%E6%B4%BB/</loc>
     <lastmod>2026-07-02</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.2</priority>
   </url>
   
   <url>
-    <loc>https://gcblog.fun/categories/%E7%94%9F%E6%B4%BB/</loc>
+    <loc>https://gcblog.fun/categories/%E5%BC%80%E5%8F%91/</loc>
     <lastmod>2026-07-02</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.2</priority>
