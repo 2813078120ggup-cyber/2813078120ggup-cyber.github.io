@@ -4,6 +4,31 @@
   
     
     <entry>
+      <title>房间租期管理+标签管理+配套管理</title>
+      <link href="/2026/07/03/%E6%88%BF%E9%97%B4%E7%A7%9F%E6%9C%9F%E7%AE%A1%E7%90%86-%E6%A0%87%E7%AD%BE%E7%AE%A1%E7%90%86/"/>
+      <url>/2026/07/03/%E6%88%BF%E9%97%B4%E7%A7%9F%E6%9C%9F%E7%AE%A1%E7%90%86-%E6%A0%87%E7%AD%BE%E7%AE%A1%E7%90%86/</url>
+      
+        <content type="html"><![CDATA[<h1 id="房间租期管理"><a href="#房间租期管理" class="headerlink" title="房间租期管理"></a>房间租期管理</h1><h2 id="1-找到对应的数据库"><a href="#1-找到对应的数据库" class="headerlink" title="1. 找到对应的数据库"></a>1. 找到对应的数据库</h2><ul><li>房间租期数据库表lease_term</li></ul><h2 id="2-设计接口"><a href="#2-设计接口" class="headerlink" title="2. 设计接口"></a>2. 设计接口</h2><h3 id="接口1：查询全部租期列表"><a href="#接口1：查询全部租期列表" class="headerlink" title="接口1：查询全部租期列表"></a>接口1：查询全部租期列表</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@GetMapping(&quot;list&quot;)</span></span><br><span class="line"><span class="meta">@Operation(summary = &quot;查询全部租期列表&quot;)</span></span><br><span class="line"><span class="keyword">public</span> Result&lt;List&lt;LeaseTerm&gt;&gt; <span class="title function_">listLeaseTerm</span><span class="params">()</span> &#123;</span><br><span class="line">List&lt;LeaseTerm&gt; list = leaseTermService.list();</span><br><span class="line"><span class="keyword">return</span> Result.ok(list);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure><h3 id="接口2：保存或更新租期信息"><a href="#接口2：保存或更新租期信息" class="headerlink" title="接口2：保存或更新租期信息"></a>接口2：保存或更新租期信息</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@PostMapping(&quot;saveOrUpdate&quot;)</span></span><br><span class="line"><span class="meta">@Operation(summary = &quot;保存或更新租期信息&quot;)</span></span><br><span class="line"><span class="keyword">public</span> Result <span class="title function_">saveOrUpdate</span><span class="params">(<span class="meta">@RequestBody</span> LeaseTerm leaseTerm)</span> &#123;</span><br><span class="line"><span class="type">boolean</span> <span class="variable">saveOrUpdate</span> <span class="operator">=</span> leaseTermService.saveOrUpdate(leaseTerm);</span><br><span class="line"><span class="keyword">if</span> (saveOrUpdate) &#123;</span><br><span class="line"><span class="keyword">return</span> Result.ok();</span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line"><span class="keyword">return</span> Result.fail();</span><br><span class="line">&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure><h3 id="接口3：根据ID删除租期"><a href="#接口3：根据ID删除租期" class="headerlink" title="接口3：根据ID删除租期"></a>接口3：根据ID删除租期</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@DeleteMapping(&quot;deleteById&quot;)</span></span><br><span class="line"><span class="meta">@Operation(summary = &quot;根据ID删除租期&quot;)</span></span><br><span class="line"><span class="keyword">public</span> Result <span class="title function_">deleteLeaseTermById</span><span class="params">(<span class="meta">@RequestParam</span> Long id)</span> &#123;</span><br><span class="line">    <span class="type">boolean</span> <span class="variable">remove</span> <span class="operator">=</span> leaseTermService.removeById(id);</span><br><span class="line">    <span class="keyword">if</span> (remove) &#123;</span><br><span class="line">    <span class="keyword">return</span> Result.ok();</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">   <span class="keyword">return</span> Result.fail();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure><h1 id="配套管理"><a href="#配套管理" class="headerlink" title="配套管理"></a>配套管理</h1><h2 id="1-找到对应的数据库-1"><a href="#1-找到对应的数据库-1" class="headerlink" title="1. 找到对应的数据库"></a>1. 找到对应的数据库</h2><ul><li>配套管理数据库表facility_info</li></ul><h2 id="2-设计接口-1"><a href="#2-设计接口-1" class="headerlink" title="2. 设计接口"></a>2. 设计接口</h2>]]></content>
+      
+      
+      <categories>
+          
+          <category> 开发 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> -Java -尚庭公寓 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>房间支付方式管理</title>
       <link href="/2026/07/01/%E6%88%BF%E9%97%B4%E6%94%AF%E4%BB%98%E6%96%B9%E5%BC%8F%E7%AE%A1%E7%90%86/"/>
       <url>/2026/07/01/%E6%88%BF%E9%97%B4%E6%94%AF%E4%BB%98%E6%96%B9%E5%BC%8F%E7%AE%A1%E7%90%86/</url>
