@@ -102,6 +102,13 @@
   </url>
   
   <url>
+    <loc>https://gcblog.fun/tags/%E5%B0%9A%E5%BA%AD%E5%85%AC%E5%AF%93/</loc>
+    <lastmod>2026-07-03</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  
+  <url>
     <loc>https://gcblog.fun/tags/Spring-Boot/</loc>
     <lastmod>2026-07-03</lastmod>
     <changefreq>weekly</changefreq>
@@ -117,13 +124,6 @@
   
   <url>
     <loc>https://gcblog.fun/tags/Knife4j/</loc>
-    <lastmod>2026-07-03</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.2</priority>
-  </url>
-  
-  <url>
-    <loc>https://gcblog.fun/tags/%E5%B0%9A%E5%BA%AD%E5%85%AC%E5%AF%93/</loc>
     <lastmod>2026-07-03</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.2</priority>
