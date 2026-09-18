@@ -5,3 +5,77 @@ body,
 #aside-content {
   font-family: "Merriweather", "PT Serif", Georgia, "Times New Roman", "STSong", "Segoe UI Emoji", serif;
 }
+
+/* Improve code readability without changing Butterfly's light background. */
+:root:not([data-theme="dark"]) {
+  --hl-color: #334155;
+  --hltools-color: #526777;
+  --hlnumber-color: #64748b;
+}
+
+:root:not([data-theme="dark"]) figure.highlight pre .comment {
+  color: #64748b;
+}
+
+:root:not([data-theme="dark"]) figure.highlight pre .variable,
+:root:not([data-theme="dark"]) figure.highlight pre .attribute,
+:root:not([data-theme="dark"]) figure.highlight pre .regexp,
+:root:not([data-theme="dark"]) figure.highlight pre .ruby .constant,
+:root:not([data-theme="dark"]) figure.highlight pre .xml .tag .title,
+:root:not([data-theme="dark"]) figure.highlight pre .xml .pi,
+:root:not([data-theme="dark"]) figure.highlight pre .xml .doctype,
+:root:not([data-theme="dark"]) figure.highlight pre .html .doctype,
+:root:not([data-theme="dark"]) figure.highlight pre .css .id,
+:root:not([data-theme="dark"]) figure.highlight pre .tag .name,
+:root:not([data-theme="dark"]) figure.highlight pre .css .class,
+:root:not([data-theme="dark"]) figure.highlight pre .css .pseudo {
+  color: #c0262d;
+}
+
+:root:not([data-theme="dark"]) figure.highlight pre .tag,
+:root:not([data-theme="dark"]) figure.highlight pre .keyword,
+:root:not([data-theme="dark"]) figure.highlight pre .title,
+:root:not([data-theme="dark"]) figure.highlight pre .css .hexcolor {
+  color: #006f7a;
+}
+
+:root:not([data-theme="dark"]) figure.highlight pre .number,
+:root:not([data-theme="dark"]) figure.highlight pre .preprocessor,
+:root:not([data-theme="dark"]) figure.highlight pre .literal,
+:root:not([data-theme="dark"]) figure.highlight pre .params,
+:root:not([data-theme="dark"]) figure.highlight pre .constant,
+:root:not([data-theme="dark"]) figure.highlight pre .command {
+  color: #b45309;
+}
+
+:root:not([data-theme="dark"]) figure.highlight pre .built_in {
+  color: #9a6700;
+}
+
+:root:not([data-theme="dark"]) figure.highlight pre .string,
+:root:not([data-theme="dark"]) figure.highlight pre .value,
+:root:not([data-theme="dark"]) figure.highlight pre .inheritance,
+:root:not([data-theme="dark"]) figure.highlight pre .header,
+:root:not([data-theme="dark"]) figure.highlight pre .ruby .symbol,
+:root:not([data-theme="dark"]) figure.highlight pre .xml .cdata,
+:root:not([data-theme="dark"]) figure.highlight pre .special,
+:root:not([data-theme="dark"]) figure.highlight pre .formula {
+  color: #3f6212;
+}
+
+:root:not([data-theme="dark"]) figure.highlight pre .function,
+:root:not([data-theme="dark"]) figure.highlight pre .python .decorator,
+:root:not([data-theme="dark"]) figure.highlight pre .python .title,
+:root:not([data-theme="dark"]) figure.highlight pre .ruby .function .title,
+:root:not([data-theme="dark"]) figure.highlight pre .ruby .title .keyword,
+:root:not([data-theme="dark"]) figure.highlight pre .perl .sub,
+:root:not([data-theme="dark"]) figure.highlight pre .javascript .title,
+:root:not([data-theme="dark"]) figure.highlight pre .coffeescript .title {
+  color: #1d4ed8;
+}
+
+:root:not([data-theme="dark"]) figure.highlight pre .meta,
+:root:not([data-theme="dark"]) figure.highlight pre .tag .attr,
+:root:not([data-theme="dark"]) figure.highlight pre .javascript .function {
+  color: #6d28d9;
+}
