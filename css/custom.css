@@ -1,9 +1,63 @@
+@font-face {
+  font-family: "Anthropic Serif Web Text";
+  src: url("/fonts/claude/anthropic-serif.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Anthropic Sans Web Text";
+  src: url("/fonts/claude/anthropic-sans.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Anthropic Mono Variable";
+  src: url("/fonts/claude/anthropic-mono.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Noto Serif SC";
+  src: url("/fonts/claude/noto-serif-sc-variable.ttf") format("truetype");
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Noto Sans SC";
+  src: url("/fonts/claude/noto-sans-sc-variable.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --blog-font-serif: "Anthropic Serif Web Text", "Noto Serif SC", Georgia, "Times New Roman", serif;
+  --blog-font-sans: "Anthropic Sans Web Text", "Noto Sans SC", system-ui, "Segoe UI", sans-serif;
+  --blog-font-mono: "Anthropic Mono Variable", "Noto Sans SC", Consolas, "Courier New", monospace;
+}
+
 body,
 #body-wrap,
-#content-inner,
 #recent-posts,
 #aside-content {
-  font-family: "Merriweather", "PT Serif", Georgia, "Times New Roman", "STSong", "Segoe UI Emoji", serif;
+  font-family: var(--blog-font-sans);
+}
+
+#article-container {
+  font-family: var(--blog-font-serif);
+}
+
+.container pre,
+.container code {
+  font-family: var(--blog-font-mono) !important;
 }
 
 /* Improve code readability without changing Butterfly's light background. */
