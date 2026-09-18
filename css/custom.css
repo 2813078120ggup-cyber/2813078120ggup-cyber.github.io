@@ -133,3 +133,93 @@ body,
 :root:not([data-theme="dark"]) figure.highlight pre .javascript .function {
   color: #6d28d9;
 }
+
+/* Article like button */
+.article-like {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 42px 0 28px;
+  font-family: var(--blog-font-sans);
+}
+
+.article-like__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-width: 176px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 1px solid rgba(47, 168, 154, .36);
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--font-color);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(31, 45, 61, .08);
+  transition: transform .2s ease, border-color .2s ease, background-color .2s ease, box-shadow .2s ease;
+}
+
+.article-like__button:not(:disabled):hover {
+  border-color: var(--btn-bg);
+  box-shadow: 0 9px 24px rgba(47, 168, 154, .16);
+  transform: translateY(-2px);
+}
+
+.article-like__button:not(:disabled):active {
+  transform: translateY(0);
+}
+
+.article-like__button:focus-visible {
+  outline: 2px solid var(--btn-bg);
+  outline-offset: 3px;
+}
+
+.article-like__button[aria-pressed="true"] {
+  border-color: var(--btn-bg);
+  background: rgba(47, 168, 154, .12);
+  color: #197a70;
+}
+
+.article-like__button:disabled {
+  cursor: not-allowed;
+  opacity: .62;
+}
+
+.article-like__icon {
+  font-size: 1.05em;
+}
+
+.article-like__count {
+  min-width: 20px;
+  padding-left: 9px;
+  border-left: 1px solid currentColor;
+  font-variant-numeric: tabular-nums;
+  opacity: .78;
+}
+
+.article-like__status {
+  min-height: 1.4em;
+  color: var(--card-meta);
+  font-size: .78em;
+}
+
+[data-theme="dark"] .article-like__button {
+  border-color: rgba(144, 164, 174, .4);
+  box-shadow: none;
+}
+
+[data-theme="dark"] .article-like__button[aria-pressed="true"] {
+  border-color: var(--btn-bg);
+  background: rgba(47, 168, 154, .18);
+  color: #78d6ca;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .article-like__button {
+    transition: none;
+  }
+}
