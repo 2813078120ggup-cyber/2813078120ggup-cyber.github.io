@@ -1,0 +1,773 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>听书项目 Day 15｜支付状态、购买记录与微信支付 | 𝐺ℎ𝑎𝑜 の 𝐵𝑙𝑜𝑔</title><meta name="author" content="𝐺ℎ𝑎𝑜"><meta name="copyright" content="𝐺ℎ𝑎𝑜"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#f7fbfa"><meta name="description" content="记录余额支付后的订单状态更新、购买记录策略模式改造，以及微信支付发起、状态查询与回调处理。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="听书项目 Day 15｜支付状态、购买记录与微信支付">
+<meta property="og:url" content="https://gcblog.fun/2026/09/02/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day15/index.html">
+<meta property="og:site_name" content="𝐺ℎ𝑎𝑜 の 𝐵𝑙𝑜𝑔">
+<meta property="og:description" content="记录余额支付后的订单状态更新、购买记录策略模式改造，以及微信支付发起、状态查询与回调处理。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://gcblog.fun/img/touxiang.jpg">
+<meta property="article:published_time" content="2026-09-02T10:00:00.000Z">
+<meta property="article:modified_time" content="2026-09-19T05:02:28.194Z">
+<meta property="article:author" content="𝐺ℎ𝑎𝑜">
+<meta property="article:tag" content="听书项目">
+<meta property="article:tag" content="微信支付">
+<meta property="article:tag" content="策略模式">
+<meta property="article:tag" content="订单">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://gcblog.fun/img/touxiang.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "听书项目 Day 15｜支付状态、购买记录与微信支付",
+  "url": "https://gcblog.fun/2026/09/02/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day15/",
+  "image": "https://gcblog.fun/img/touxiang.jpg",
+  "datePublished": "2026-09-02T10:00:00.000Z",
+  "dateModified": "2026-09-19T05:02:28.194Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "𝐺ℎ𝑎𝑜",
+      "url": "https://space.bilibili.com/1750548973"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://gcblog.fun/2026/09/02/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day15/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//hm.baidu.com"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/node-snackbar@0.1.16/dist/snackbar.min.css" media="print" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@6.1.9/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#10211F')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#f7fbfa')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          const mediaQueryDark = window.matchMedia('(prefers-color-scheme: dark)')
+          const mediaQueryLight = window.matchMedia('(prefers-color-scheme: light)')
+
+          if (theme === undefined) {
+            if (mediaQueryLight.matches) activateLightMode()
+            else if (mediaQueryDark.matches) activateDarkMode()
+            else {
+              const hour = new Date().getHours()
+              const isNight = hour <= 6 || hour >= 18
+              isNight ? activateDarkMode() : activateLightMode()
+            }
+            mediaQueryDark.addEventListener('change', () => {
+              if (saveToLocal.get('theme') === undefined) {
+                e.matches ? activateDarkMode() : activateLightMode()
+              }
+            })
+          } else {
+            theme === 'light' ? activateLightMode() : activateDarkMode()
+          }
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "https://hm.baidu.com/hm.js?c9e3387abfb3432da895bea4bb17ba6d";
+  var s = document.getElementsByTagName("script")[0];
+  s.parentNode.insertBefore(hm, s);
+})();
+btf.addGlobalFn('pjaxComplete', () => {
+  _hmt.push(['_trackPageview',window.location.pathname])
+}, 'baidu_analytics')
+</script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"top_n_per_article":1,"unescape":false,"pagination":{"enable":false,"hitsPerPage":8},"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '天',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: {"limitCount":150,"languages":{"author":"作者: 𝐺ℎ𝑎𝑜","link":"链接: ","source":"来源: 𝐺ℎ𝑎𝑜 の 𝐵𝑙𝑜𝑔","info":"著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。"}},
+  lightbox: 'fancybox',
+  Snackbar: {"chs_to_cht":"已切换为繁体中文","cht_to_chs":"已切换为简体中文","day_to_night":"已切换为深色模式","night_to_day":"已切换为浅色模式","bgLight":"#49b1f5","bgDark":"#1f1f1f","position":"bottom-left"},
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: true,
+  },
+  autoDarkmode: true
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '听书项目 Day 15｜支付状态、购买记录与微信支付',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="/css/custom.css"><meta name="generator" content="Hexo 8.1.2"></head><body><script>window.paceOptions = {
+  restartOnPushState: false
+}
+
+btf.addGlobalFn('pjaxSend', () => {
+  Pace.restart()
+}, 'pace_restart')
+
+</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/themes/blue/pace-theme-minimal.min.css"/><script src="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/pace.min.js"></script><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/touxiang.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">29</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">68</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/hidden/"><i class="fa-fw fas fa-lock"></i><span> 私密</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> 关于</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg fixed" id="page-header" style="background-image: url(/img/suolong.webp);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="/img/avatar.png" alt="Logo"><span class="site-name">𝐺ℎ𝑎𝑜 の 𝐵𝑙𝑜𝑔</span></a><a class="nav-page-title" href="/"><span class="site-name">听书项目 Day 15｜支付状态、购买记录与微信支付</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/hidden/"><i class="fa-fw fas fa-lock"></i><span> 私密</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> 关于</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">听书项目 Day 15｜支付状态、购买记录与微信支付</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-02T10:00:00.000Z" title="发表于 2026-09-02 18:00:00">2026-09-02</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-19T05:02:28.194Z" title="更新于 2026-09-19 13:02:28">2026-09-19</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%BC%80%E5%8F%91/">开发</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%BC%80%E5%8F%91/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE/">听书项目</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">4.4k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>19分钟</span></span><span class="post-meta-separator">|</span><span id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="twikoo_visitors"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>记录余额支付后的订单状态更新、购买记录策略模式改造，以及微信支付发起、状态查询与回调处理。</p>
+</blockquote>
+<h2 id="本篇要点"><a href="#本篇要点" class="headerlink" title="本篇要点"></a>本篇要点</h2><ul>
+<li>处理余额支付后的订单状态</li>
+<li>用策略模式整理购买记录</li>
+<li>梳理微信支付请求与回调</li>
+</ul>
+<blockquote>
+<p>**学习提示：**微信支付相关代码和测试片段属于学习记录，不代表已经通过真实商户环境的端到端验收。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="内容回顾"><a href="#内容回顾" class="headerlink" title="内容回顾"></a>内容回顾</h2><h3 id="1、提交订单接口"><a href="#1、提交订单接口" class="headerlink" title="1、提交订单接口"></a>1、提交订单接口</h3><ul>
+<li><p>检查和扣减余额</p>
+</li>
+<li><p>保存订单数据</p>
+</li>
+<li><p>延迟消息（订单超时未支付自动取消）</p>
+</li>
+</ul>
+<p>– RabbitMQ的TTL+死信队列</p>
+<p>– RabbitMQ延迟插件</p>
+<p>– Redisson实现</p>
+<ul>
+<li>保存购买记录</li>
+</ul>
+<h2 id="今天内容"><a href="#今天内容" class="headerlink" title="今天内容"></a>今天内容</h2><h2 id="0、订单模块总结"><a href="#0、订单模块总结" class="headerlink" title="0、订单模块总结"></a>0、订单模块总结</h2><p><strong>第一，订单模块流程（图）</strong></p>
+<p><strong>第二，细节或者技术等</strong></p>
+<ul>
+<li>进行重复提交判断</li>
+<li>进行数据加密防止篡改</li>
+<li>使用策略模式对添加购买记录优化</li>
+</ul>
+<h2 id="1、余额支付完成修改订单状态"><a href="#1、余额支付完成修改订单状态" class="headerlink" title="1、余额支付完成修改订单状态"></a>1、余额支付完成修改订单状态</h2><ul>
+<li>使用余额支付成功之后，修改订单状态变成已经支付</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//根据订单编号修改订单状态</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">orderPaySuccess</span><span class="params">(String orderNo)</span> &#123;</span><br><span class="line">    <span class="comment">//根据订单编号查询订单对象</span></span><br><span class="line">    <span class="type">OrderInfo</span> <span class="variable">orderInfo</span> <span class="operator">=</span> <span class="built_in">this</span>.getOrderInfoByOrderNo(orderNo);</span><br><span class="line">    <span class="comment">//订单状态是未支付修改</span></span><br><span class="line">    <span class="keyword">if</span> (orderInfo.getOrderStatus().equals(<span class="string">&quot;0901&quot;</span>)) &#123;</span><br><span class="line">        <span class="comment">//订单对象设置订单状态值 0902</span></span><br><span class="line">        <span class="comment">//SystemConstant.ORDER_STATUS_PAID</span></span><br><span class="line">        orderInfo.setOrderStatus(<span class="string">&quot;0902&quot;</span>);</span><br><span class="line"></span><br><span class="line">        <span class="comment">//调用方法进行修改</span></span><br><span class="line">        orderInfoMapper.updateById(orderInfo);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">//根据订单编号查询订单对象</span></span><br><span class="line"><span class="keyword">public</span> OrderInfo <span class="title function_">getOrderInfoByOrderNo</span><span class="params">(String orderNo)</span> &#123;</span><br><span class="line">    LambdaQueryWrapper&lt;OrderInfo&gt; queryWrapper = <span class="keyword">new</span> <span class="title class_">LambdaQueryWrapper</span>&lt;&gt;();</span><br><span class="line">    queryWrapper.eq(OrderInfo::getOrderNo, orderNo);</span><br><span class="line">    <span class="type">OrderInfo</span> <span class="variable">orderInfo</span> <span class="operator">=</span> orderInfoMapper.selectOne(queryWrapper);</span><br><span class="line"></span><br><span class="line">    <span class="comment">//根据订单id查询明细数据</span></span><br><span class="line">    <span class="type">Long</span> <span class="variable">orderId</span> <span class="operator">=</span> orderInfo.getId();</span><br><span class="line">    LambdaQueryWrapper&lt;OrderDetail&gt; wrapper = <span class="keyword">new</span> <span class="title class_">LambdaQueryWrapper</span>&lt;&gt;();</span><br><span class="line">    wrapper.eq(OrderDetail::getOrderId, orderId);</span><br><span class="line">    List&lt;OrderDetail&gt; orderDetails = orderDetailMapper.selectList(wrapper);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">//设置到订单对象里面</span></span><br><span class="line">    orderInfo.setOrderDetailList(orderDetails);</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">return</span> orderInfo;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="2、优化保存购买记录代码"><a href="#2、优化保存购买记录代码" class="headerlink" title="2、优化保存购买记录代码"></a>2、优化保存购买记录代码</h2><h3 id="设计模式"><a href="#设计模式" class="headerlink" title="设计模式"></a>设计模式</h3><ul>
+<li><p>软件设计模式（Design pattern）是一套被反复使用、经过分类编目的代码设计经验总结</p>
+</li>
+<li><p>设计模式提升代码可重用性、可理解性与可靠性。</p>
+</li>
+<li><p>有很多常见设计模型：单例模型、工厂模式、策略模式等</p>
+</li>
+</ul>
+<h3 id="策略模式概念"><a href="#策略模式概念" class="headerlink" title="策略模式概念"></a>策略模式概念</h3><ul>
+<li><p>官方定义：它是将定义的算法家族分别封装起来，让它们之间可以互相替换，从而让算法的变化不会影响到使用算法的用户</p>
+</li>
+<li><p><strong>策略模式</strong>使用的就是面向对象的多态机制，从而实现<strong>同一行为在不同场景下具备不同实现</strong>。避免使用多重条件选择语句（if else），充分体现面向对象设计思想</p>
+</li>
+<li><p><strong>举例：添加购买记录</strong></p>
+</li>
+</ul>
+<p>– 购买专辑、vip和声音都是添加购买记录，因为购买内容不同操作逻辑不同的</p>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/01535acc71bf77ea1ade409f68b57965b7d7708636e040bea0d090f94794ef17.png" alt="image-20251108093451786"></p>
+<h3 id="策略模式实现"><a href="#策略模式实现" class="headerlink" title="策略模式实现"></a>策略模式实现</h3><p>策略模式的主要角色如下：</p>
+<ul>
+<li>抽象策略（Strategy）类：这是一个抽象角色，通常由一个接口或抽象类实现。此角色给出所有的具体策略类所需的接口。</li>
+<li>具体策略（Concrete Strategy）类：实现了抽象策略定义的接口，提供具体的算法实现或行为。</li>
+<li>环境（Context）类：用来操作策略的上下文环境，屏蔽高层模块（客户端）对策略、算法的直接访问，封装可能存在的变化。</li>
+</ul>
+<h4 id="第一步-创建接口，定义保存购买记录方法"><a href="#第一步-创建接口，定义保存购买记录方法" class="headerlink" title="第一步 创建接口，定义保存购买记录方法"></a>第一步 创建接口，定义保存购买记录方法</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//策略接口</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">interface</span> <span class="title class_">ItemTypeStrategy</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">//定义添加购买记录方法</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">savePaidRecord</span><span class="params">(UserPaidRecordVo userPaidRecordVo)</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="第二步-创建多个策略类（专辑、vip、声音）实现接口方法"><a href="#第二步-创建多个策略类（专辑、vip、声音）实现接口方法" class="headerlink" title="第二步 创建多个策略类（专辑、vip、声音）实现接口方法"></a>第二步 创建多个策略类（专辑、vip、声音）实现接口方法</h4><p><img src="https://cdn.gcblog.fun/tingshu-notes/e3c73e760eb060f180c95a87e8d509310716a963f3f843e3f3549a13c6b2c9aa.png" alt="image-20251108095300555"></p>
+<ul>
+<li><strong>购买vip实现类</strong></li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//购买vip实现类</span></span><br><span class="line"><span class="meta">@Component</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">VipItemTypeStrategyImpl</span> <span class="keyword">implements</span> <span class="title class_">ItemTypeStrategy</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> UserInfoMapper userInfoMapper;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> VipServiceConfigMapper vipServiceConfigMapper;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> UserVipServiceMapper userVipServiceMapper;</span><br><span class="line"></span><br><span class="line">    <span class="comment">//添加vip购买记录</span></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">savePaidRecord</span><span class="params">(UserPaidRecordVo userPaidRecordVo)</span> &#123;</span><br><span class="line"><span class="comment">//3.判断购买项目类型-处理VIP会员-允许多次购买</span></span><br><span class="line">        <span class="comment">//3.1 新增VIP购买记录</span></span><br><span class="line">        <span class="type">UserVipService</span> <span class="variable">userVipService</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">UserVipService</span>();</span><br><span class="line">        <span class="comment">//3.1.1 根据VIP套餐ID查询套餐信息-得到VIP会员服务月数</span></span><br><span class="line">        <span class="type">Long</span> <span class="variable">vipConfigId</span> <span class="operator">=</span> userPaidRecordVo.getItemIdList().get(<span class="number">0</span>);</span><br><span class="line">        <span class="type">VipServiceConfig</span> <span class="variable">vipServiceConfig</span> <span class="operator">=</span></span><br><span class="line">                vipServiceConfigMapper.selectById(vipConfigId);</span><br><span class="line">        <span class="comment">//3.1.2 获取用户身份，如果是VIP会员，则续费</span></span><br><span class="line">        <span class="type">UserInfo</span> <span class="variable">userInfo</span> <span class="operator">=</span></span><br><span class="line">                userInfoMapper.selectById(userPaidRecordVo.getUserId());</span><br><span class="line"></span><br><span class="line">        <span class="comment">//  当前系统时间</span></span><br><span class="line">        <span class="type">Date</span> <span class="variable">currentTime</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Date</span>();</span><br><span class="line">        <span class="keyword">if</span> (userInfo.getIsVip().intValue() == <span class="number">1</span></span><br><span class="line">                &amp;&amp; userInfo.getVipExpireTime().after(<span class="keyword">new</span> <span class="title class_">Date</span>())) &#123;</span><br><span class="line">            <span class="comment">//  设置vip 续费的起始时间</span></span><br><span class="line">            currentTime = userInfo.getVipExpireTime();</span><br><span class="line">        &#125;</span><br><span class="line">        currentTime =</span><br><span class="line">                <span class="keyword">new</span> <span class="title class_">LocalDateTime</span>(currentTime)</span><br><span class="line">                        .plusMonths(vipServiceConfig.getServiceMonth()).toDate();</span><br><span class="line">        <span class="comment">//  设置过期时间</span></span><br><span class="line">        userVipService.setExpireTime(currentTime);</span><br><span class="line">        userVipService.setStartTime(<span class="keyword">new</span> <span class="title class_">Date</span>());</span><br><span class="line">        <span class="comment">//3.1.4 构建VIP购买记录对象保存</span></span><br><span class="line">        userVipService.setUserId(userPaidRecordVo.getUserId());</span><br><span class="line">        userVipService.setOrderNo(userPaidRecordVo.getOrderNo());</span><br><span class="line">        userVipServiceMapper.insert(userVipService);</span><br><span class="line"></span><br><span class="line">        <span class="comment">//3.2 更新用户表中VIP状态及会员过期时间</span></span><br><span class="line">        userInfo.setIsVip(<span class="number">1</span>);</span><br><span class="line">        userInfo.setVipExpireTime(userVipService.getExpireTime());</span><br><span class="line">        userInfoMapper.updateById(userInfo);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>购买专辑实现类</strong></li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//购买专辑实现类</span></span><br><span class="line"><span class="meta">@Component</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">AlbumItemTypeStrategyImpl</span> <span class="keyword">implements</span> <span class="title class_">ItemTypeStrategy</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> UserPaidAlbumMapper userPaidAlbumMapper;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">//添加专辑购买记录</span></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">savePaidRecord</span><span class="params">(UserPaidRecordVo userPaidRecordVo)</span> &#123;</span><br><span class="line">        <span class="comment">//1.1 根据订单编号查询专辑购买记录</span></span><br><span class="line">        LambdaQueryWrapper&lt;UserPaidAlbum&gt; userPaidAlbumLambdaQueryWrapper = <span class="keyword">new</span> <span class="title class_">LambdaQueryWrapper</span>&lt;&gt;();</span><br><span class="line">        userPaidAlbumLambdaQueryWrapper.eq(UserPaidAlbum::getOrderNo, userPaidRecordVo.getOrderNo());</span><br><span class="line">        <span class="type">Long</span> <span class="variable">count</span> <span class="operator">=</span> userPaidAlbumMapper.selectCount(userPaidAlbumLambdaQueryWrapper);</span><br><span class="line">        <span class="keyword">if</span> (count &gt; <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">//1.2 查询到专辑购买记录为空则新增购买记录</span></span><br><span class="line">        <span class="type">UserPaidAlbum</span> <span class="variable">userPaidAlbum</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">UserPaidAlbum</span>();</span><br><span class="line">        userPaidAlbum.setOrderNo(userPaidRecordVo.getOrderNo());</span><br><span class="line">        userPaidAlbum.setUserId(userPaidRecordVo.getUserId());</span><br><span class="line">        userPaidAlbum.setAlbumId(userPaidRecordVo.getItemIdList().get(<span class="number">0</span>));</span><br><span class="line">        userPaidAlbumMapper.insert(userPaidAlbum);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>购买声音实现类</strong></li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//购买声音实现类</span></span><br><span class="line"><span class="meta">@Component</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">TrackItemTypeStrategyImpl</span> <span class="keyword">implements</span> <span class="title class_">ItemTypeStrategy</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> UserPaidTrackMapper userPaidTrackMapper;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> TrackInfoFeignClient trackInfoFeignClient;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">//添加声音购买记录</span></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">savePaidRecord</span><span class="params">(UserPaidRecordVo userPaidRecordVo)</span> &#123;</span><br><span class="line"><span class="comment">//2.判断购买项目类型-处理声音</span></span><br><span class="line">        <span class="comment">//2.1 根据订单编号查询声音购买记录</span></span><br><span class="line">        LambdaQueryWrapper&lt;UserPaidTrack&gt; userPaidTrackLambdaQueryWrapper = <span class="keyword">new</span> <span class="title class_">LambdaQueryWrapper</span>&lt;&gt;();</span><br><span class="line">        userPaidTrackLambdaQueryWrapper.eq(UserPaidTrack::getOrderNo, userPaidRecordVo.getOrderNo());</span><br><span class="line">        <span class="type">Long</span> <span class="variable">count</span> <span class="operator">=</span> userPaidTrackMapper.selectCount(userPaidTrackLambdaQueryWrapper);</span><br><span class="line">        <span class="keyword">if</span> (count &gt; <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">//2.2 查询到声音购买记录为空则新增购买记录（循环批量新增）</span></span><br><span class="line">        <span class="comment">//2.2.1 远程调用专辑服务-根据声音ID查询声音对象-获取声音所属专辑ID</span></span><br><span class="line">        <span class="type">TrackInfo</span> <span class="variable">trackInfo</span> <span class="operator">=</span> </span><br><span class="line">                trackInfoFeignClient.getTrackInfo(</span><br><span class="line">                        userPaidRecordVo.getItemIdList().get(<span class="number">0</span>)).getData();</span><br><span class="line">        <span class="type">Long</span> <span class="variable">albumId</span> <span class="operator">=</span> trackInfo.getAlbumId();</span><br><span class="line">        </span><br><span class="line">        <span class="comment">//2.2.2 遍历购买项目ID集合批量新增声音购买记录</span></span><br><span class="line">        userPaidRecordVo.getItemIdList().forEach(trackId -&gt; &#123;</span><br><span class="line">            <span class="type">UserPaidTrack</span> <span class="variable">userPaidTrack</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">UserPaidTrack</span>();</span><br><span class="line">            userPaidTrack.setOrderNo(userPaidRecordVo.getOrderNo());</span><br><span class="line">            userPaidTrack.setUserId(userPaidRecordVo.getUserId());</span><br><span class="line">            userPaidTrack.setAlbumId(albumId);</span><br><span class="line">            userPaidTrack.setTrackId(trackId);</span><br><span class="line">            userPaidTrackMapper.insert(userPaidTrack);</span><br><span class="line">        &#125;);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="第三步-创建环境类，根据购买类型切换使用不同实现类"><a href="#第三步-创建环境类，根据购买类型切换使用不同实现类" class="headerlink" title="第三步 创建环境类，根据购买类型切换使用不同实现类"></a>第三步 创建环境类，根据购买类型切换使用不同实现类</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Component</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">StrategyFactory</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 1001-专辑 1002-声音 1003-vip会员</span></span><br><span class="line">    <span class="comment">// &lt;bean id=&quot;albumItemTypeStrategyImpl&quot;</span></span><br><span class="line">        <span class="comment">//    class=&quot;com.atguigu.tingshu.user.AlbumItemTypeStrategyImpl&quot;/&gt;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// Map&lt;key,value&gt;: key对象id值  value：对象</span></span><br><span class="line"></span><br><span class="line"><span class="comment">//     * 将IOC容器中ItemTypeStrategy接口下所有实现类对象注入到Map中</span></span><br><span class="line"><span class="comment">//     * Map中Key：Bean对象ID</span></span><br><span class="line"><span class="comment">//     * Map中Value：实现类对象</span></span><br><span class="line"><span class="comment">//     * &#123;&quot;1001&quot;:购买类型为专辑策略类对象&#125;</span></span><br><span class="line"><span class="comment">//     * &#123;&quot;1002&quot;:购买类型为声音策略类对象&#125;</span></span><br><span class="line"><span class="comment">//     * &#123;&quot;1003&quot;:购买类型为vip策略类对象&#125;</span></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> Map&lt;String,ItemTypeStrategy&gt; itemTypeStrategy;</span><br><span class="line"></span><br><span class="line">    <span class="comment">//根据不同类型  返回不同对象的方法</span></span><br><span class="line">    <span class="keyword">public</span> ItemTypeStrategy <span class="title function_">getStrategy</span><span class="params">(String itemType)</span> &#123;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">if</span> (itemTypeStrategy.containsKey(itemType)) &#123;</span><br><span class="line">            <span class="keyword">return</span> itemTypeStrategy.get(itemType);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> <span class="title class_">GuiguException</span>(<span class="number">500</span>, <span class="string">&quot;该策略&quot;</span> + itemType + <span class="string">&quot;实现类不存在&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="第四步-使用策略模式修改调用地方"><a href="#第四步-使用策略模式修改调用地方" class="headerlink" title="第四步 使用策略模式修改调用地方"></a>第四步 使用策略模式修改调用地方</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//使用策略模式优化：添加购买记录</span></span><br><span class="line"><span class="meta">@Autowired</span></span><br><span class="line"><span class="keyword">private</span> StrategyFactory strategyFactory;</span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">savePaidRecord</span><span class="params">(UserPaidRecordVo userPaidRecordVo)</span> &#123;</span><br><span class="line">    <span class="comment">//// 1001-专辑 1002-声音 1003-vip会员</span></span><br><span class="line">    <span class="type">String</span> <span class="variable">itemType</span> <span class="operator">=</span> userPaidRecordVo.getItemType();</span><br><span class="line">    </span><br><span class="line">    <span class="comment">//1 根据购买类型，获取不同的实现类</span></span><br><span class="line">    <span class="type">ItemTypeStrategy</span> <span class="variable">strategy</span> <span class="operator">=</span> strategyFactory.getStrategy(itemType);</span><br><span class="line"></span><br><span class="line">    <span class="comment">//2 调用不同实现类里面添加购买记录方法</span></span><br><span class="line">    strategy.savePaidRecord(userPaidRecordVo);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="3、订单其他接口"><a href="#3、订单其他接口" class="headerlink" title="3、订单其他接口"></a>3、订单其他接口</h2><h3 id="根据订单编号查询订单数据"><a href="#根据订单编号查询订单数据" class="headerlink" title="根据订单编号查询订单数据"></a>根据订单编号查询订单数据</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@GuiguLogin</span></span><br><span class="line"><span class="meta">@Operation(summary = &quot;根据订单号获取订单信息&quot;)</span></span><br><span class="line"><span class="meta">@GetMapping(&quot;getOrderInfo/&#123;orderNo&#125;&quot;)</span></span><br><span class="line"><span class="keyword">public</span> Result&lt;OrderInfo&gt; <span class="title function_">getOrderInfo</span><span class="params">(<span class="meta">@PathVariable</span> String orderNo)</span> &#123;</span><br><span class="line">    <span class="type">OrderInfo</span> <span class="variable">orderInfo</span> <span class="operator">=</span> orderInfoService.getOrderInfoByOrderNo(orderNo);</span><br><span class="line">    <span class="keyword">return</span> Result.ok(orderInfo);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//根据订单编号查询订单对象</span></span><br><span class="line"><span class="keyword">public</span> OrderInfo <span class="title function_">getOrderInfoByOrderNo</span><span class="params">(String orderNo)</span> &#123;</span><br><span class="line">    LambdaQueryWrapper&lt;OrderInfo&gt; queryWrapper = <span class="keyword">new</span> <span class="title class_">LambdaQueryWrapper</span>&lt;&gt;();</span><br><span class="line">    queryWrapper.eq(OrderInfo::getOrderNo, orderNo);</span><br><span class="line">    <span class="type">OrderInfo</span> <span class="variable">orderInfo</span> <span class="operator">=</span> orderInfoMapper.selectOne(queryWrapper);</span><br><span class="line"></span><br><span class="line">    <span class="comment">//根据订单id查询明细数据</span></span><br><span class="line">    <span class="type">Long</span> <span class="variable">orderId</span> <span class="operator">=</span> orderInfo.getId();</span><br><span class="line">    LambdaQueryWrapper&lt;OrderDetail&gt; wrapper = <span class="keyword">new</span> <span class="title class_">LambdaQueryWrapper</span>&lt;&gt;();</span><br><span class="line">    wrapper.eq(OrderDetail::getOrderId, orderId);</span><br><span class="line">    List&lt;OrderDetail&gt; orderDetails = orderDetailMapper.selectList(wrapper);</span><br><span class="line"></span><br><span class="line">    <span class="comment">//设置到订单对象里面</span></span><br><span class="line">    orderInfo.setOrderDetailList(orderDetails);</span><br><span class="line"></span><br><span class="line">    orderInfo.setPayWayName(<span class="built_in">this</span>.getPayWayName(orderInfo.getPayWay()));</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">return</span> orderInfo;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="查询当前用户所有订单"><a href="#查询当前用户所有订单" class="headerlink" title="查询当前用户所有订单"></a>查询当前用户所有订单</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@GuiguLogin</span></span><br><span class="line"><span class="meta">@Operation(summary = &quot;获取用户订单&quot;)</span></span><br><span class="line"><span class="meta">@GetMapping(&quot;findUserPage/&#123;page&#125;/&#123;limit&#125;&quot;)</span></span><br><span class="line"><span class="keyword">public</span> Result <span class="title function_">index</span><span class="params">(<span class="meta">@PathVariable</span> Long page,</span></span><br><span class="line"><span class="params">                  <span class="meta">@PathVariable</span> Long limit)</span> &#123;</span><br><span class="line">    <span class="comment">// 获取到用户Id</span></span><br><span class="line">    <span class="type">Long</span> <span class="variable">userId</span> <span class="operator">=</span> AuthContextHolder.getUserId();</span><br><span class="line">    Page&lt;OrderInfo&gt; pageParam = <span class="keyword">new</span> <span class="title class_">Page</span>&lt;&gt;(page, limit);</span><br><span class="line">    <span class="comment">// 调用服务层方法</span></span><br><span class="line">    IPage&lt;OrderInfo&gt; pageModel = orderInfoService</span><br><span class="line">          .findUserPage(pageParam, userId);</span><br><span class="line">    <span class="keyword">return</span> Result.ok(pageModel);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="keyword">public</span> IPage&lt;OrderInfo&gt; <span class="title function_">findUserPage</span><span class="params">(Page&lt;OrderInfo&gt; pageParam, Long userId)</span> &#123;</span><br><span class="line">    <span class="comment">//  调用mapper 层方法</span></span><br><span class="line">    IPage&lt;OrderInfo&gt; infoIPage = orderInfoMapper.selectUserPage(pageParam,userId);</span><br><span class="line">    infoIPage.getRecords().forEach(item-&gt;&#123;</span><br><span class="line">        <span class="comment">//  设置状态名</span></span><br><span class="line">        item.setOrderStatusName(getOrderStatusName(item.getOrderStatus()));</span><br><span class="line">        item.setPayWayName(getPayWayName(item.getPayWay()));</span><br><span class="line">    &#125;);</span><br><span class="line">    <span class="keyword">return</span> infoIPage;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">&lt;?xml version=<span class="string">&quot;1.0&quot;</span> encoding=<span class="string">&quot;UTF-8&quot;</span> ?&gt;</span></span><br><span class="line"><span class="meta">&lt;!DOCTYPE <span class="keyword">mapper</span></span></span><br><span class="line"><span class="meta">        <span class="keyword">PUBLIC</span> <span class="string">&quot;-//mybatis.org//DTD Mapper 3.0//EN&quot;</span></span></span><br><span class="line"><span class="meta">        <span class="string">&quot;http://mybatis.org/dtd/mybatis-3-mapper.dtd&quot;</span>&gt;</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="tag">&lt;<span class="name">mapper</span> <span class="attr">namespace</span>=<span class="string">&quot;com.atguigu.tingshu.order.mapper.OrderInfoMapper&quot;</span>&gt;</span></span><br><span class="line"></span><br><span class="line">    <span class="tag">&lt;<span class="name">resultMap</span> <span class="attr">id</span>=<span class="string">&quot;orderInfoMap&quot;</span> <span class="attr">type</span>=<span class="string">&quot;com.atguigu.tingshu.model.order.OrderInfo&quot;</span> <span class="attr">autoMapping</span>=<span class="string">&quot;true&quot;</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">id</span> <span class="attr">property</span>=<span class="string">&quot;id&quot;</span> <span class="attr">column</span>=<span class="string">&quot;id&quot;</span>&gt;</span><span class="tag">&lt;/<span class="name">id</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">collection</span> <span class="attr">property</span>=<span class="string">&quot;orderDetailList&quot;</span></span></span><br><span class="line"><span class="tag">                     <span class="attr">ofType</span>=<span class="string">&quot;com.atguigu.tingshu.model.order.OrderDetail&quot;</span> <span class="attr">autoMapping</span>=<span class="string">&quot;true&quot;</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">id</span> <span class="attr">property</span>=<span class="string">&quot;id&quot;</span> <span class="attr">column</span>=<span class="string">&quot;detail_id&quot;</span>&gt;</span><span class="tag">&lt;/<span class="name">id</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">collection</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">resultMap</span>&gt;</span></span><br><span class="line">    <span class="comment">&lt;!-- 用于select查询公用抽取的列 --&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">sql</span> <span class="attr">id</span>=<span class="string">&quot;columns&quot;</span>&gt;</span></span><br><span class="line">        oi.id ,</span><br><span class="line">            oi.user_id,</span><br><span class="line">            oi.order_title,</span><br><span class="line">            oi.order_no,</span><br><span class="line">            oi.order_status,</span><br><span class="line">            oi.original_amount,</span><br><span class="line">            oi.derate_amount,</span><br><span class="line">            oi.order_amount,</span><br><span class="line">            oi.item_type,</span><br><span class="line">            oi.pay_way,</span><br><span class="line">            od.id detail_id,</span><br><span class="line">            od.item_id,</span><br><span class="line">            od.item_name,</span><br><span class="line">            od.item_url,</span><br><span class="line">            od.item_price</span><br><span class="line">    <span class="tag">&lt;/<span class="name">sql</span>&gt;</span></span><br><span class="line"></span><br><span class="line">    <span class="tag">&lt;<span class="name">select</span> <span class="attr">id</span>=<span class="string">&quot;selectUserPage&quot;</span> <span class="attr">resultMap</span>=<span class="string">&quot;orderInfoMap&quot;</span>&gt;</span></span><br><span class="line">        select</span><br><span class="line">        <span class="tag">&lt;<span class="name">include</span> <span class="attr">refid</span>=<span class="string">&quot;columns&quot;</span>&gt;</span><span class="tag">&lt;/<span class="name">include</span>&gt;</span></span><br><span class="line">        from order_info oi inner join order_detail od on oi.id = od.order_id</span><br><span class="line">        where oi.user_id = #&#123;userId&#125;</span><br><span class="line">        order by oi.id desc</span><br><span class="line">    <span class="tag">&lt;/<span class="name">select</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">mapper</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="4、微信支付"><a href="#4、微信支付" class="headerlink" title="4、微信支付"></a>4、微信支付</h2><h3 id="4-1-发起微信支付请求接口"><a href="#4-1-发起微信支付请求接口" class="headerlink" title="4.1 发起微信支付请求接口"></a>4.1 发起微信支付请求接口</h3><ul>
+<li>购买vip  或者 购买专辑，可以使用微信支付。但是购买声音只能余额！</li>
+<li>点击微信执行，首先创建未支付订单，之后调用接口发起微信支付请求</li>
+<li>发起微信支付请求接口传递两个参数：订单编号 和 支付种类（购买或者充值）</li>
+<li>1301 购买种类</li>
+</ul>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/25a0a6dfab6f63a859437bf789ba2c48f3823153be5095984ef3cd8a48abfe0a.png" alt="image-20251108140519460"></p>
+<h4 id="WxPayApiController"><a href="#WxPayApiController" class="headerlink" title="WxPayApiController"></a>WxPayApiController</h4><p><img src="https://cdn.gcblog.fun/tingshu-notes/fc99b5ce502f023044b9bc3fc5d8cce17cd1bb7dcbacf8ea63a152ccc04b76b7.png" alt="image-20251108142006291"></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Tag(name = &quot;微信支付接口&quot;)</span></span><br><span class="line"><span class="meta">@RestController</span></span><br><span class="line"><span class="meta">@RequestMapping(&quot;api/payment/wxPay&quot;)</span></span><br><span class="line"><span class="meta">@Slf4j</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">WxPayApiController</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> WxPayService wxPayService;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 微信支付</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> paymentType  支付种类：购买 充值</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> orderNo       订单编号</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span></span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="meta">@GuiguLogin</span></span><br><span class="line">    <span class="meta">@Operation(summary = &quot;微信下单&quot;)</span></span><br><span class="line">    <span class="meta">@PostMapping(&quot;/createJsapi/&#123;paymentType&#125;/&#123;orderNo&#125;&quot;)</span></span><br><span class="line">    <span class="keyword">public</span> Result <span class="title function_">createJsapi</span><span class="params">(<span class="meta">@PathVariable</span> String paymentType,</span></span><br><span class="line"><span class="params">                              <span class="meta">@PathVariable</span> String orderNo)</span> &#123;</span><br><span class="line">        <span class="type">Long</span> <span class="variable">userId</span> <span class="operator">=</span> AuthContextHolder.getUserId();</span><br><span class="line">        <span class="type">Map</span> <span class="variable">map</span> <span class="operator">=</span> wxPayService.createJsapi(paymentType,orderNo,userId);</span><br><span class="line">        <span class="keyword">return</span> Result.ok(map);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="Service"><a href="#Service" class="headerlink" title="Service"></a>Service</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Service</span></span><br><span class="line"><span class="meta">@Slf4j</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">WxPayServiceImpl</span> <span class="keyword">implements</span> <span class="title class_">WxPayService</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> PaymentInfoService paymentInfoService;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> OrderInfoFeignClient orderInfoFeignClient;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> RSAAutoCertificateConfig rsaAutoCertificateConfig;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> WxPayV3Config wxPayV3Config;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> UserInfoFeignClient userInfoFeignClient;</span><br><span class="line">    <span class="comment">//发起微信支付请求</span></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> Map <span class="title function_">createJsapi</span><span class="params">(String paymentType, String orderNo, Long userId)</span> &#123;</span><br><span class="line">       <span class="comment">//1 如果paymentType支付种类是购买，判断订单不能取消，如果订单状态是取消不支付</span></span><br><span class="line">       <span class="comment">//// 支付类型 1301-订单 1302-充值</span></span><br><span class="line">       <span class="keyword">if</span>(!paymentType.equals(SystemConstant.PAYMENT_TYPE_RECHARGE)) &#123;</span><br><span class="line">          <span class="comment">//根据订单编号获取订单信息</span></span><br><span class="line">          Result&lt;OrderInfo&gt; orderInfoResult = orderInfoFeignClient.getOrderInfo(orderNo);</span><br><span class="line">          <span class="type">OrderInfo</span> <span class="variable">orderInfo</span> <span class="operator">=</span> orderInfoResult.getData();</span><br><span class="line">          Assert.notNull(orderInfo,<span class="string">&quot;订单为空&quot;</span>);</span><br><span class="line">          <span class="comment">//订单状态</span></span><br><span class="line">          <span class="type">String</span> <span class="variable">orderStatus</span> <span class="operator">=</span> orderInfo.getOrderStatus();</span><br><span class="line">          <span class="comment">//如果订单取消状态，不需要支付</span></span><br><span class="line">          <span class="comment">//订单状态 0901-正常 0902-已支付 0903-已取消</span></span><br><span class="line">          <span class="keyword">if</span> (SystemConstant.ORDER_STATUS_CANCEL.equals(orderStatus))&#123;</span><br><span class="line">             <span class="comment">// 此时订单已取消</span></span><br><span class="line">             <span class="keyword">return</span> <span class="literal">null</span>;</span><br><span class="line">          &#125;</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="comment">//2 添加支付记录到支付记录表(支付记录状态 - 未支付)</span></span><br><span class="line">       <span class="type">PaymentInfo</span> <span class="variable">paymentInfo</span> <span class="operator">=</span></span><br><span class="line">               paymentInfoService.savePaymentInfo(paymentType, orderNo);</span><br><span class="line"></span><br><span class="line">       <span class="comment">//3 发起微信支付请求</span></span><br><span class="line">       <span class="comment">// JsapiServiceExtension对象</span></span><br><span class="line">       <span class="type">JsapiServiceExtension</span> <span class="variable">service</span> <span class="operator">=</span></span><br><span class="line">             <span class="keyword">new</span> <span class="title class_">JsapiServiceExtension</span>.Builder()</span><br><span class="line">                   .config(rsaAutoCertificateConfig).build();</span><br><span class="line">       <span class="comment">//创建request对象，设置微信支付需要参数</span></span><br><span class="line">       <span class="type">PrepayRequest</span> <span class="variable">request</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">PrepayRequest</span>();</span><br><span class="line">       <span class="comment">// 注意在这个包下 com.wechat.pay.java.service.payments.jsapi.model.Amount</span></span><br><span class="line">       <span class="comment">//TODO 支付金额   支付0.01</span></span><br><span class="line">       <span class="type">Amount</span> <span class="variable">amount</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Amount</span>();</span><br><span class="line">       amount.setTotal(<span class="number">1</span>);</span><br><span class="line">       request.setAmount(amount);</span><br><span class="line"></span><br><span class="line">       <span class="comment">//公众号id  商户号等信息</span></span><br><span class="line">       request.setAppid(wxPayV3Config.getAppid());</span><br><span class="line">       request.setMchid(wxPayV3Config.getMerchantId());</span><br><span class="line">       <span class="comment">//微信显示信息</span></span><br><span class="line">       request.setDescription(paymentInfo.getContent());</span><br><span class="line">       <span class="comment">//微信回调地址</span></span><br><span class="line">       request.setNotifyUrl(wxPayV3Config.getNotifyUrl());</span><br><span class="line">       <span class="comment">//订单编号</span></span><br><span class="line">       request.setOutTradeNo(paymentInfo.getOrderNo());</span><br><span class="line">       <span class="comment">// 获取用户信息</span></span><br><span class="line">       Result&lt;UserInfoVo&gt; userInfoVoResult = userInfoFeignClient.getUserInfoVo(paymentInfo.getUserId());</span><br><span class="line">       Assert.notNull(userInfoVoResult,<span class="string">&quot;返回用户结果集对象不能为空&quot;</span>);</span><br><span class="line">       <span class="type">UserInfoVo</span> <span class="variable">userInfoVo</span> <span class="operator">=</span> userInfoVoResult.getData();</span><br><span class="line">       Assert.notNull(userInfoVo,<span class="string">&quot;用户对象不能为空&quot;</span>);</span><br><span class="line">       <span class="type">String</span> <span class="variable">openid</span> <span class="operator">=</span> userInfoVo.getWxOpenId();</span><br><span class="line">       <span class="type">Payer</span> <span class="variable">payer</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Payer</span>();</span><br><span class="line">       payer.setOpenid(openid);</span><br><span class="line">       request.setPayer(payer);</span><br><span class="line"></span><br><span class="line">       <span class="comment">//调用方法，传递request对象，发起微信支付请求</span></span><br><span class="line">       <span class="type">PrepayWithRequestPaymentResponse</span> <span class="variable">response</span> <span class="operator">=</span></span><br><span class="line">                 service.prepayWithRequestPayment(request);</span><br><span class="line">       Map&lt;String, Object&gt; result = <span class="keyword">new</span> <span class="title class_">HashMap</span>();</span><br><span class="line">       result.put(<span class="string">&quot;timeStamp&quot;</span>, response.getTimeStamp());</span><br><span class="line">       result.put(<span class="string">&quot;nonceStr&quot;</span>, response.getNonceStr());</span><br><span class="line">       result.put(<span class="string">&quot;package&quot;</span>, response.getPackageVal());</span><br><span class="line">       result.put(<span class="string">&quot;signType&quot;</span>, response.getSignType());</span><br><span class="line">       result.put(<span class="string">&quot;paySign&quot;</span>, response.getPaySign());</span><br><span class="line">       <span class="comment">// 返回数据</span></span><br><span class="line">       <span class="keyword">return</span> result;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="保存支付记录方法"><a href="#保存支付记录方法" class="headerlink" title="保存支付记录方法"></a>保存支付记录方法</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Service</span></span><br><span class="line"><span class="meta">@SuppressWarnings(&#123;&quot;all&quot;&#125;)</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">PaymentInfoServiceImpl</span> <span class="keyword">extends</span> <span class="title class_">ServiceImpl</span>&lt;PaymentInfoMapper, PaymentInfo&gt; <span class="keyword">implements</span> <span class="title class_">PaymentInfoService</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> OrderInfoFeignClient orderInfoFeignClient;</span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> RechargeInfoFeignClient rechargeInfoFeignClient;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> PaymentInfoMapper paymentInfoMapper;</span><br><span class="line"></span><br><span class="line">    <span class="comment">//保存支付记录</span></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> PaymentInfo <span class="title function_">savePaymentInfo</span><span class="params">(String paymentType, String orderNo)</span> &#123;</span><br><span class="line">        <span class="comment">//1 根据订单编号，查询支付记录表</span></span><br><span class="line">        LambdaQueryWrapper&lt;PaymentInfo&gt; wrapper = <span class="keyword">new</span> <span class="title class_">LambdaQueryWrapper</span>&lt;&gt;();</span><br><span class="line">        wrapper.eq(PaymentInfo::getOrderNo,orderNo);</span><br><span class="line">        <span class="type">PaymentInfo</span> <span class="variable">paymentInfo</span> <span class="operator">=</span> paymentInfoMapper.selectOne(wrapper);</span><br><span class="line"></span><br><span class="line">        <span class="comment">//2 判断如果没有查到数据，第一次添加，如果查询到直接返回</span></span><br><span class="line">        <span class="keyword">if</span>(paymentInfo == <span class="literal">null</span>) &#123;</span><br><span class="line">            paymentInfo = <span class="keyword">new</span> <span class="title class_">PaymentInfo</span>();</span><br><span class="line">            <span class="comment">//判断支付种类paymentType ，购买订单  或者  充值</span></span><br><span class="line">            <span class="comment">//1301-订单</span></span><br><span class="line">            <span class="keyword">if</span>(paymentType.equals(SystemConstant.PAYMENT_TYPE_ORDER)) &#123;</span><br><span class="line">                <span class="comment">//  远程调用获取到订单对象</span></span><br><span class="line">                Result&lt;OrderInfo&gt; orderInfoResult = orderInfoFeignClient.getOrderInfo(orderNo);</span><br><span class="line">                Assert.notNull(orderInfoResult,<span class="string">&quot;返回订单对象不能为空&quot;</span>);</span><br><span class="line">                <span class="type">OrderInfo</span> <span class="variable">orderInfo</span> <span class="operator">=</span> orderInfoResult.getData();</span><br><span class="line">                Assert.notNull(orderInfo,<span class="string">&quot;返回订单对象不能为空&quot;</span>);</span><br><span class="line">                <span class="comment">//支付金额</span></span><br><span class="line">                paymentInfo.setAmount(orderInfo.getOrderAmount());</span><br><span class="line">                <span class="comment">//userId</span></span><br><span class="line">                paymentInfo.setUserId(orderInfo.getUserId());</span><br><span class="line">                paymentInfo.setContent(orderInfo.getOrderTitle());</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123; <span class="comment">//1302-充值</span></span><br><span class="line">                <span class="comment">//TODO</span></span><br><span class="line">            &#125;</span><br><span class="line">            paymentInfo.setPaymentType(paymentType);</span><br><span class="line">            paymentInfo.setOrderNo(orderNo);</span><br><span class="line">            <span class="comment">//状态：未支付</span></span><br><span class="line">            paymentInfo.setPaymentStatus(SystemConstant.PAYMENT_STATUS_UNPAID);</span><br><span class="line">            paymentInfoMapper.insert(paymentInfo);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> paymentInfo;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="4-2-查询微信支付状态"><a href="#4-2-查询微信支付状态" class="headerlink" title="4.2 查询微信支付状态"></a>4.2 查询微信支付状态</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 查询支付状态 https://pay.weixin.qq.com/wiki/doc/apiv3/apis/chapter3_5_2.shtml</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@param</span> orderNo</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@return</span></span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="meta">@Operation(summary = &quot;支付状态查询&quot;)</span></span><br><span class="line"><span class="meta">@GetMapping(&quot;/queryPayStatus/&#123;orderNo&#125;&quot;)</span></span><br><span class="line"><span class="keyword">public</span> Result <span class="title function_">queryPayStatus</span><span class="params">(<span class="meta">@PathVariable</span> String orderNo)</span> &#123;</span><br><span class="line">    <span class="comment">//调用方法根据订单编号查询支付状态，返回Transaction</span></span><br><span class="line">    <span class="type">Transaction</span> <span class="variable">transaction</span> <span class="operator">=</span> wxPayService.queryPayStatus(orderNo);</span><br><span class="line">    <span class="comment">//Transaction对象判断是否成功</span></span><br><span class="line">    <span class="comment">// &quot;trade_state&quot; : &quot;SUCCESS&quot;,</span></span><br><span class="line">    <span class="keyword">if</span>(transaction != <span class="literal">null</span> &amp;&amp;</span><br><span class="line">            transaction.getTradeState()==Transaction.TradeStateEnum.SUCCESS) &#123;</span><br><span class="line">        <span class="comment">//调用方法更新订单或者支付记录和购买记录</span></span><br><span class="line">        paymentInfoService.updatePaymentStatus(transaction);</span><br><span class="line">        <span class="keyword">return</span> Result.ok(<span class="literal">true</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> Result.ok(<span class="literal">false</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>根据订单编号查询支付状态</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//根据订单编号查询支付状态</span></span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="keyword">public</span> Transaction <span class="title function_">queryPayStatus</span><span class="params">(String orderNo)</span> &#123;</span><br><span class="line">   <span class="type">JsapiServiceExtension</span> <span class="variable">service</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">JsapiServiceExtension</span>.Builder()</span><br><span class="line">				.config(rsaAutoCertificateConfig).build();</span><br><span class="line">    <span class="type">QueryOrderByOutTradeNoRequest</span> <span class="variable">queryRequest</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">QueryOrderByOutTradeNoRequest</span>();</span><br><span class="line">    queryRequest.setMchid(wxPayV3Config.getMerchantId());</span><br><span class="line">    queryRequest.setOutTradeNo(orderNo);</span><br><span class="line"></span><br><span class="line">    <span class="type">Transaction</span> <span class="variable">transaction</span> <span class="operator">=</span> service.queryOrderByOutTradeNo(queryRequest);</span><br><span class="line">    <span class="keyword">return</span> transaction;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<ul>
+<li>更新支付记录、订单状态、添加购买记录</li>
+</ul>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/dfe2330deab10820a0e16aff17b3335e06077d344b3185c9a6c6b754c4f0d479.png" alt="image-20251108153610767"></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//调用方法更新订单或者支付记录和购买记录</span></span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">updatePaymentStatus</span><span class="params">(Transaction transaction)</span> &#123;</span><br><span class="line">    <span class="comment">//获取订单编号</span></span><br><span class="line">    <span class="type">String</span> <span class="variable">orderNo</span> <span class="operator">=</span> transaction.getOutTradeNo();</span><br><span class="line">    <span class="type">PaymentInfo</span> <span class="variable">paymentInfo</span> <span class="operator">=</span></span><br><span class="line">            <span class="built_in">this</span>.getOne(<span class="keyword">new</span> <span class="title class_">LambdaQueryWrapper</span>&lt;PaymentInfo&gt;()</span><br><span class="line">                    .eq(PaymentInfo::getOrderNo, orderNo));</span><br><span class="line">    <span class="keyword">if</span> (<span class="string">&quot;1402&quot;</span>.equals(paymentInfo.getPaymentStatus())) &#123;</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">//SystemConstant.PAYMENT_STATUS_PAID</span></span><br><span class="line">    paymentInfo.setPaymentStatus(<span class="string">&quot;1402&quot;</span>); <span class="comment">//已经支付</span></span><br><span class="line">    <span class="comment">//订单编号</span></span><br><span class="line">    paymentInfo.setOrderNo(transaction.getOutTradeNo());</span><br><span class="line">    paymentInfo.setOutTradeNo(transaction.getTransactionId());</span><br><span class="line">    paymentInfo.setCallbackTime(<span class="keyword">new</span> <span class="title class_">Date</span>());</span><br><span class="line">    paymentInfo.setCallbackContent(JSON.toJSONString(transaction));</span><br><span class="line">    <span class="built_in">this</span>.updateById(paymentInfo);</span><br><span class="line"></span><br><span class="line">    <span class="comment">//发送mq消息orderNo，更新订单状态</span></span><br><span class="line">    <span class="comment">//1301-订单    1302-充值</span></span><br><span class="line">    <span class="type">String</span> <span class="variable">routing</span> <span class="operator">=</span> </span><br><span class="line">            paymentInfo.getPaymentType().equals(SystemConstant.PAYMENT_TYPE_ORDER)</span><br><span class="line">                    ? MqConst.ROUTING_ORDER_PAY_SUCCESS </span><br><span class="line">                    : MqConst.ROUTING_RECHARGE_PAY_SUCCESS;</span><br><span class="line">    </span><br><span class="line">    rabbitService.sendMessage(MqConst.EXCHANGE_ORDER, </span><br><span class="line">            routing, </span><br><span class="line">            paymentInfo.getOrderNo());</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Component</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">OrderReceiver</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> OrderInfoService orderInfoService;</span><br><span class="line">    </span><br><span class="line">    <span class="meta">@SneakyThrows</span></span><br><span class="line">    <span class="meta">@RabbitListener(bindings = @QueueBinding(</span></span><br><span class="line"><span class="meta">            exchange = @Exchange(value = MqConst.EXCHANGE_ORDER, durable = &quot;true&quot;),</span></span><br><span class="line"><span class="meta">            value = @Queue(value = MqConst.QUEUE_ORDER_PAY_SUCCESS, durable = &quot;true&quot;),</span></span><br><span class="line"><span class="meta">            key = &#123;MqConst.ROUTING_ORDER_PAY_SUCCESS&#125;</span></span><br><span class="line"><span class="meta">    ))</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">orderPaySuccess</span><span class="params">(String orderNo, Message message, Channel channel)</span> &#123;</span><br><span class="line">        <span class="keyword">if</span>(StringUtils.hasText(orderNo)) &#123;</span><br><span class="line">            orderInfoService.updateOrderSuccess(orderNo);</span><br><span class="line">        &#125;</span><br><span class="line">        channel.basicAck(message.getMessageProperties().getDeliveryTag(), <span class="literal">false</span>);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//根据订单编号修改订单状态（已经支付），远程调用添加购买记录</span></span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">updateOrderSuccess</span><span class="params">(String orderNo)</span> &#123;</span><br><span class="line">    <span class="comment">//根据订单编号修改订单状态（已经支付）</span></span><br><span class="line">    <span class="comment">//根据订单编号查询订单对象</span></span><br><span class="line">    <span class="type">OrderInfo</span> <span class="variable">orderInfo</span> <span class="operator">=</span> <span class="built_in">this</span>.getOrderInfoByOrderNo(orderNo);</span><br><span class="line">    <span class="comment">//订单状态是未支付修改</span></span><br><span class="line">    <span class="keyword">if</span> (orderInfo.getOrderStatus().equals(<span class="string">&quot;0901&quot;</span>)) &#123;</span><br><span class="line">        <span class="comment">//订单对象设置订单状态值 0902</span></span><br><span class="line">        <span class="comment">//SystemConstant.ORDER_STATUS_PAID</span></span><br><span class="line">        orderInfo.setOrderStatus(<span class="string">&quot;0902&quot;</span>);</span><br><span class="line"></span><br><span class="line">        <span class="comment">//调用方法进行修改</span></span><br><span class="line">        orderInfoMapper.updateById(orderInfo);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">//远程调用添加购买记录</span></span><br><span class="line">    <span class="type">UserPaidRecordVo</span> <span class="variable">userPaidRecordVo</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">UserPaidRecordVo</span>();</span><br><span class="line">    userPaidRecordVo.setOrderNo(orderNo);</span><br><span class="line">    userPaidRecordVo.setUserId(orderInfo.getUserId());</span><br><span class="line">    userPaidRecordVo.setItemType(orderInfo.getItemType());</span><br><span class="line">    List&lt;Long&gt; itemIdList =</span><br><span class="line">            orderInfo.getOrderDetailList().stream().map(OrderDetail::getItemId).collect(Collectors.toList());</span><br><span class="line">    userPaidRecordVo.setItemIdList(itemIdList);</span><br><span class="line"></span><br><span class="line">    userInfoFeignClient.savePaidRecord(userPaidRecordVo);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="4-3-支付成功微信回调通知"><a href="#4-3-支付成功微信回调通知" class="headerlink" title="4.3 支付成功微信回调通知"></a>4.3 支付成功微信回调通知</h3><ul>
+<li><strong>我们项目目前实现方式：</strong></li>
+</ul>
+<p>发起微信支付请求之后，前端每隔5s调用一次查询支付状态接口，如果支付中，前端继续调用，如果支付成功前端不再调用</p>
+<ul>
+<li><strong>还有一种方式：</strong></li>
+</ul>
+<p>当微信支付成功之后，微信主动调用提供的接口，在这个接口获取微信传递过来成功信息，收到信息之后返回给微信收到标识。如果不给微信返回，微信继续通知，最多通知15次</p>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/51990d5d53273542b33b086af5074bcdb7d9bd4301795fb8b88485b132f49a86.png" alt="image-20251108163303900"></p>
+<p>微信回调我们通知成功，需要有公网ip或者域名才可以，如果没有公网ip可以使用内网穿透工具</p>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/b5a11fc8bf382c3ac73cb07e423846427d5ebcc1960d5b35e02933f9907a807d.png" alt="image-20251108164058862">                                         </p>
+<h2 id="5、测试微信支付方式"><a href="#5、测试微信支付方式" class="headerlink" title="5、测试微信支付方式"></a>5、测试微信支付方式</h2><h3 id="第一步-找到支付测试位置"><a href="#第一步-找到支付测试位置" class="headerlink" title="第一步 找到支付测试位置"></a>第一步 找到支付测试位置</h3><ul>
+<li>我的</li>
+</ul>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/dcded9686ccd1ba6fa526f20af990069b79beff885e37511d4ef7890783fdbd5.png" alt="image-20251108164240893"></p>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/86cd0d1af6862dd623ad85249d73c6839e31d2283bd5715e85f440aaf6c08f3b.png" alt="image-20251108164303549"></p>
+<h3 id="第二步-使用微信支付方式生成订单，不支付"><a href="#第二步-使用微信支付方式生成订单，不支付" class="headerlink" title="第二步 使用微信支付方式生成订单，不支付"></a>第二步 使用微信支付方式生成订单，不支付</h3><h3 id="第三步-复制订单编号到支付测试里面"><a href="#第三步-复制订单编号到支付测试里面" class="headerlink" title="第三步 复制订单编号到支付测试里面"></a>第三步 复制订单编号到支付测试里面</h3><ul>
+<li>出现错误</li>
+</ul>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/b0192586c2b838fef40cba3e35ac43a03ff782a1e8cefd4e3af16fb670f8b10e.png" alt="image-20251108165006369"></p>
+<h3 id="第四步-修改订单编号，重新复制过来"><a href="#第四步-修改订单编号，重新复制过来" class="headerlink" title="第四步 修改订单编号，重新复制过来"></a>第四步 修改订单编号，重新复制过来</h3><p><img src="https://cdn.gcblog.fun/tingshu-notes/b0192586c2b838fef40cba3e35ac43a03ff782a1e8cefd4e3af16fb670f8b10e.png" alt="image-20251108165058194"></p>
+<h3 id="第五步-修改nacos微信相关值"><a href="#第五步-修改nacos微信相关值" class="headerlink" title="第五步 修改nacos微信相关值"></a>第五步 修改nacos微信相关值</h3><p><img src="https://cdn.gcblog.fun/tingshu-notes/f2316b784f44de08aec419e1bb1e8bb5a479f4684f1c18fb4545829dc5739845.png" alt="image-20251108165227618"></p>
+<ul>
+<li>注意证书路径</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="meta">@GuiguLogin</span></span><br><span class="line"><span class="meta">@Operation(summary = &quot;微信Native下单&quot;)</span></span><br><span class="line"><span class="meta">@Parameters(&#123;</span></span><br><span class="line"><span class="meta">        @Parameter(name = &quot;paymentType&quot;,description = &quot;支付类型：1301-订单 1302-充值&quot;,in = ParameterIn.PATH,required = true),</span></span><br><span class="line"><span class="meta">        @Parameter(name = &quot;orderNo&quot;,description = &quot;订单号&quot;,required = true,in = ParameterIn.PATH),</span></span><br><span class="line"><span class="meta">&#125;)</span></span><br><span class="line"><span class="meta">@PostMapping(&quot;/createNative/&#123;paymentType&#125;/&#123;orderNo&#125;&quot;)</span></span><br><span class="line"><span class="keyword">public</span> Result&lt;Map&lt;String, Object&gt;&gt; <span class="title function_">createNative</span><span class="params">(<span class="meta">@PathVariable</span> String paymentType, <span class="meta">@PathVariable</span> String orderNo)</span> &#123;</span><br><span class="line">    Map&lt;String, Object&gt; map = wxPayService.createNative(paymentType, orderNo, AuthContextHolder.getUserId());</span><br><span class="line">    <span class="keyword">return</span> Result.ok(map);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="keyword">public</span> Map&lt;String, Object&gt;</span><br><span class="line"><span class="title function_">createNative</span><span class="params">(String paymentType, String orderNo, Long userId)</span> &#123;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">       <span class="comment">//保存支付记录</span></span><br><span class="line">       <span class="type">PaymentInfo</span> <span class="variable">paymentInfo</span> <span class="operator">=</span> paymentInfoService.savePaymentInfo(paymentType, orderNo);</span><br><span class="line"></span><br><span class="line">       <span class="comment">// 构建service</span></span><br><span class="line">       <span class="type">NativePayService</span> <span class="variable">service</span> <span class="operator">=</span></span><br><span class="line">             <span class="keyword">new</span> <span class="title class_">NativePayService</span>.Builder().config(rsaAutoCertificateConfig).build();</span><br><span class="line">       <span class="comment">// request.setXxx(val)设置所需参数，具体参数可见Request定义</span></span><br><span class="line">       com.wechat.pay.java.service.payments.nativepay.model.<span class="type">PrepayRequest</span> <span class="variable">request</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">com</span>.wechat.pay.java.service.payments.nativepay.model.PrepayRequest();</span><br><span class="line">       com.wechat.pay.java.service.payments.nativepay.model.<span class="type">Amount</span> <span class="variable">amount</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">com</span>.wechat.pay.java.service.payments.nativepay.model.Amount();</span><br><span class="line">       amount.setTotal(<span class="number">1</span>);</span><br><span class="line">       request.setAmount(amount);</span><br><span class="line">       request.setAppid(wxPayV3Config.getAppid());</span><br><span class="line">       request.setMchid(wxPayV3Config.getMerchantId());</span><br><span class="line">       request.setDescription(paymentInfo.getContent());</span><br><span class="line">       request.setNotifyUrl(wxPayV3Config.getNotifyUrl());</span><br><span class="line">       request.setOutTradeNo(paymentInfo.getOrderNo());</span><br><span class="line"></span><br><span class="line">       <span class="comment">// 调用下单方法，得到应答</span></span><br><span class="line">       com.wechat.pay.java.service.payments.nativepay.model.<span class="type">PrepayResponse</span> <span class="variable">response</span> <span class="operator">=</span> service.prepay(request);</span><br><span class="line">       <span class="comment">// 使用微信扫描 code_url 对应的二维码，即可体验Native支付</span></span><br><span class="line">       System.out.println(response.getCodeUrl());</span><br><span class="line"></span><br><span class="line">       <span class="type">Map</span> <span class="variable">result</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">HashMap</span>&lt;&gt;();</span><br><span class="line">       result.put(<span class="string">&quot;codeUrl&quot;</span>, response.getCodeUrl());</span><br><span class="line">       <span class="keyword">return</span> result;</span><br><span class="line">    &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">       e.printStackTrace();</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">null</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/436d59d0694723619d2589c232076336e13da64faa00c83f2856255595a20395.png" alt="image-20251108164832360"></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://space.bilibili.com/1750548973">𝐺ℎ𝑎𝑜</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://gcblog.fun/2026/09/02/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day15/">https://gcblog.fun/2026/09/02/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day15/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://gcblog.fun" target="_blank">𝐺ℎ𝑎𝑜 の 𝐵𝑙𝑜𝑔</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE/">听书项目</a><a class="post-meta__tags" href="/tags/%E8%AE%A2%E5%8D%95/">订单</a><a class="post-meta__tags" href="/tags/%E5%BE%AE%E4%BF%A1%E6%94%AF%E4%BB%98/">微信支付</a><a class="post-meta__tags" href="/tags/%E7%AD%96%E7%95%A5%E6%A8%A1%E5%BC%8F/">策略模式</a></div><div class="post-share"><div class="social-share" data-image="/img/touxiang.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/2026/09/03/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day16/" title="听书项目 Day 16｜充值与 XXL-JOB 任务调度"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">听书项目 Day 16｜充值与 XXL-JOB 任务调度</div></div><div class="info-2"><div class="info-item-1"> 记录充值订单、支付结果处理和 XXL-JOB 的部署与接入，并复盘订单模块涉及的异步处理。  本篇要点 梳理充值订单与支付记录 学习 XXL-JOB 调度中心和执行器 复盘订单异步处理   **学习提示：**课程中的支付、延迟方案与调度配置应按实际代码和环境验证；不要把示例配置视为生产部署结果。    内容回顾1、设计模式优化你熟悉设计模式？ 你项目中是否使用过设计模式？ 你项目做过哪些代码级别优化？ – 使用策略模式优化添加购买记录 – 使用aop + 注解方式实现专辑缓存  策略模式：使用的就是面向对象的多态机制，从而实现同一行为在不同场景下有不同实现  场景：添加购买记录 订单包含vip、声音和专辑，购买这些都需要添加购买记录，买内容不同添加记录不同 这个场景使用策略模式进行优化   – 第一步 创建接口，定义添加购买记录方法 – 第二步 根据不同购买类型比较多个实现类，创建vip、声音和专辑实现类，分别实现方法 – 第三步 创建环境类，根据不同购买类型返回不同实现类对象 2、微信支付 发起微信支付请求 查询微信支付状态  项目中，对于微信支付如何判断成功或者失败？ 1 ...</div></div></div></a><a class="pagination-related" href="/2026/09/01/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day14/" title="听书项目 Day 14｜订单提交与余额扣减"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">听书项目 Day 14｜订单提交与余额扣减</div></div><div class="info-2"><div class="info-item-1"> 梳理订单创建、远程检查和扣减账户余额、消息可靠性与超时未支付订单处理方案。  本篇要点 串联提交订单的业务步骤 检查余额并进行条件扣减 区分消息可靠性与延迟取消方案   **学习提示：**笔记中列出 TTL&#x2F;死信队列和延迟插件等方案；方案介绍不等于当前项目的超时取消链路已使用 RabbitMQ 延迟消息。    内容回顾 登录 搜索 详情 订单  1、跳转到结算页面 订单：vip、专辑、声音 都是跳转结算页面，显示vip、专辑、声音  2、生成订单接口（一部分） 重复提交 数据加密判断  今天内容1、订单实现流程 2、订单接口OrderService订单方法123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384//提交订单接口@Overridepublic String submitOrder(OrderIn...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/09/01/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day14/" title="听书项目 Day 14｜订单提交与余额扣减"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-01</div><div class="info-item-2">听书项目 Day 14｜订单提交与余额扣减</div></div><div class="info-2"><div class="info-item-1"> 梳理订单创建、远程检查和扣减账户余额、消息可靠性与超时未支付订单处理方案。  本篇要点 串联提交订单的业务步骤 检查余额并进行条件扣减 区分消息可靠性与延迟取消方案   **学习提示：**笔记中列出 TTL&#x2F;死信队列和延迟插件等方案；方案介绍不等于当前项目的超时取消链路已使用 RabbitMQ 延迟消息。    内容回顾 登录 搜索 详情 订单  1、跳转到结算页面 订单：vip、专辑、声音 都是跳转结算页面，显示vip、专辑、声音  2、生成订单接口（一部分） 重复提交 数据加密判断  今天内容1、订单实现流程 2、订单接口OrderService订单方法123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384//提交订单接口@Overridepublic String submitOrder(OrderIn...</div></div></div></a><a class="pagination-related" href="/2026/08/30/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day12/" title="听书项目 Day 12｜Canal 缓存失效与订单入口"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-30</div><div class="info-item-2">听书项目 Day 12｜Canal 缓存失效与订单入口</div></div><div class="info-2"><div class="info-item-1"> 整理 Canal 监听 MySQL Binlog 的缓存失效流程，并开始分析听书项目订单模块和结算入口。  本篇要点 理解 Binlog 与 Canal 的关系 梳理变更后的缓存失效 进入订单模块的需求分析   **学习提示：**Canal 相关示例账号已占位；这里的处理重点是识别数据变更并删除相应缓存，并非直接同步完整 Redis 对象。    内容回顾1、专辑缓存+分布式锁 使用分布式锁解决缓存击穿问题 一、使用Redis的setnx + 过期时间 + uuid + lua脚本 二、Redisson框架使用 Redisson实现分布式锁有两种机制  – 重试机制 – 看门狗机制 2、自定义注解+AOP实现缓存 切面类ProceedingJoinPoint使用  3、布隆过滤器 解决缓存穿透问题  存储0或者1数组   使用多个映射函数计算数据在数组位置  存在误判率   4、mysql和redis数据一致性 延迟双删策略：保证数据最终一致性  – 删除缓存 – 修改数据库 – 休眠一会 – 再删除缓存  数据同步canal工具  – 相当于mysql从机，监控mysql主机...</div></div></div></a><a class="pagination-related" href="/2026/09/03/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day16/" title="听书项目 Day 16｜充值与 XXL-JOB 任务调度"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-03</div><div class="info-item-2">听书项目 Day 16｜充值与 XXL-JOB 任务调度</div></div><div class="info-2"><div class="info-item-1"> 记录充值订单、支付结果处理和 XXL-JOB 的部署与接入，并复盘订单模块涉及的异步处理。  本篇要点 梳理充值订单与支付记录 学习 XXL-JOB 调度中心和执行器 复盘订单异步处理   **学习提示：**课程中的支付、延迟方案与调度配置应按实际代码和环境验证；不要把示例配置视为生产部署结果。    内容回顾1、设计模式优化你熟悉设计模式？ 你项目中是否使用过设计模式？ 你项目做过哪些代码级别优化？ – 使用策略模式优化添加购买记录 – 使用aop + 注解方式实现专辑缓存  策略模式：使用的就是面向对象的多态机制，从而实现同一行为在不同场景下有不同实现  场景：添加购买记录 订单包含vip、声音和专辑，购买这些都需要添加购买记录，买内容不同添加记录不同 这个场景使用策略模式进行优化   – 第一步 创建接口，定义添加购买记录方法 – 第二步 根据不同购买类型比较多个实现类，创建vip、声音和专辑实现类，分别实现方法 – 第三步 创建环境类，根据不同购买类型返回不同实现类对象 2、微信支付 发起微信支付请求 查询微信支付状态  项目中，对于微信支付如何判断成功或者失败？ 1 ...</div></div></div></a><a class="pagination-related" href="/2026/08/31/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day13/" title="听书项目 Day 13｜声音结算页与订单提交"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-31</div><div class="info-item-2">听书项目 Day 13｜声音结算页与订单提交</div></div><div class="info-2"><div class="info-item-1"> 记录购买声音的结算页、可购买集数、订单提交前的业务检查及用户余额查询。  本篇要点 进入购买声音的结算流程 计算和展示可购买声音 梳理提交订单与余额查询    内容回顾1、canal工具 canal解决mysql和redis数据一致性问题 底层机制  – 相当于mysql从机，监控主机二进制日志变化 2、订单模块 跳转结算页面需求  – 购买vip – 购买专辑 – 购买声音  优惠价格计算公式  – 比如100，打八折，优惠20 – 原始价格 * （10-折扣）&#x2F; 10  防止重复提交    防止数据被篡改，数据加密   今天内容 登录 搜索 详情 订单  1、跳转结算页面（购买声音）1.1 实现流程  实现上面流程，编写两个接口  第一个接口，显示可以购买声音集数 第二个接口，跳转声音购买结算页面 1.2 显示可以购买声音集数接口  123456789//显示可以购买声音集数@GuiguLogin@Operation(summary = &quot;获取用户声音分集购买支付列表&quot;)@GetMapping(&quot;/findUserTrackPaidL...</div></div></div></a><a class="pagination-related" href="/2026/08/26/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day08/" title="听书项目 Day 08｜分类树、联想词与专辑详情"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-26</div><div class="info-item-2">听书项目 Day 08｜分类树、联想词与专辑详情</div></div><div class="info-2"><div class="info-item-1"> 整理一级分类下的完整分类树、检索关键词自动补全、Logstash 以及专辑详情接口的学习记录。  本篇要点 组装一级分类下的二三级分类 实现关键词自动补全 了解日志与专辑详情接口    内容回顾1、专辑检索接口 重点编写DSL语句代码  2、根据一级id查询前7个置顶三级数据3、首页数据接口今天内容1、根据一级分类Id获取全部分类信息分析 在首页，点击某个一级分类，比如点击音乐，点击全部，根据一级分类id查询一级分类下面所有二级和三级分类    查询分类数据格式  123456789101112131415161718192021222324252627&#123;	一级分类id：  1	一级分类名称：音乐	child: [		&#123;			二级分类id：11			二级分类名称：音乐音效			child: [				&#123;					三级分类id：111					三级分类名称：运动音乐				&#125;			]		&#125;	]&#125;# 1 根据一级分类id查询一级分类数据，进行封装# 2 根据一级分类id查询下面的二级和三级分类数据# 查询base_cate...</div></div></div></a><a class="pagination-related" href="/2026/08/22/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day04/" title="听书项目 Day 04｜微信登录与登录校验"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-22</div><div class="info-item-2">听书项目 Day 04｜微信登录与登录校验</div></div><div class="info-2"><div class="info-item-1"> 梳理微信小程序登录、OpenID 查询、Redis 保存登录态，以及自定义注解和 AOP 校验登录的流程。  本篇要点 从 code 获取用户身份 用 Redis 保存登录状态 通过注解与切面统一校验登录    内容回顾核心模块 登录 专辑详情 订单 搜索  声音管理模块 保存声音 声音列表 删除声音 修改声音  今天内容前置知识 自定义注解 AOP Redis  1、用户登录流程（背）   **httpClient：**请求微信接口服务器使用httpClient **RabbitMQ：**第一次登录，使用RabbitMQ异步初始化账户余额 **Redis：**通过Redis存储token数据，Redis的key是token，value是用户信息，设置过期时间 **Cookie（localStorage）：**因为cookie默认不能跨域传递的，每次发送请求时候，把cookie值放到请求头里面进行传递 自定义注解 AOP  2、实现校验登录流程 每次请求接口都需要首先做登录判断 1、从请求头获取token（前端传递过来的） 2、根据token查询redis（redis的key是...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div></div><div class="comment-wrap"><div><div id="twikoo-wrap"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/touxiang.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">𝐺ℎ𝑎𝑜</div><div class="author-info-description">记录 Java 学习、Spring Boot 项目、Hexo 博客搭建和日常技术笔记的个人博客。</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">29</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">68</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/2813078120ggup-cyber"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/2813078120ggup-cyber" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:gaochao_dev@qq.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://space.bilibili.com/1750548973" target="_blank" title="Bilibili"><i class="fab fa-bilibili" style="color: #00a1d6;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客！这里是我的个人空间，分享我的学习和生活点滴。希望你能喜欢这里的内容，让我们共同进步！(≖‿≖)✧</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%9C%AC%E7%AF%87%E8%A6%81%E7%82%B9"><span class="toc-text">本篇要点</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%86%85%E5%AE%B9%E5%9B%9E%E9%A1%BE"><span class="toc-text">内容回顾</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1%E3%80%81%E6%8F%90%E4%BA%A4%E8%AE%A2%E5%8D%95%E6%8E%A5%E5%8F%A3"><span class="toc-text">1、提交订单接口</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BB%8A%E5%A4%A9%E5%86%85%E5%AE%B9"><span class="toc-text">今天内容</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#0%E3%80%81%E8%AE%A2%E5%8D%95%E6%A8%A1%E5%9D%97%E6%80%BB%E7%BB%93"><span class="toc-text">0、订单模块总结</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#1%E3%80%81%E4%BD%99%E9%A2%9D%E6%94%AF%E4%BB%98%E5%AE%8C%E6%88%90%E4%BF%AE%E6%94%B9%E8%AE%A2%E5%8D%95%E7%8A%B6%E6%80%81"><span class="toc-text">1、余额支付完成修改订单状态</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2%E3%80%81%E4%BC%98%E5%8C%96%E4%BF%9D%E5%AD%98%E8%B4%AD%E4%B9%B0%E8%AE%B0%E5%BD%95%E4%BB%A3%E7%A0%81"><span class="toc-text">2、优化保存购买记录代码</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F"><span class="toc-text">设计模式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AD%96%E7%95%A5%E6%A8%A1%E5%BC%8F%E6%A6%82%E5%BF%B5"><span class="toc-text">策略模式概念</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AD%96%E7%95%A5%E6%A8%A1%E5%BC%8F%E5%AE%9E%E7%8E%B0"><span class="toc-text">策略模式实现</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%80%E6%AD%A5-%E5%88%9B%E5%BB%BA%E6%8E%A5%E5%8F%A3%EF%BC%8C%E5%AE%9A%E4%B9%89%E4%BF%9D%E5%AD%98%E8%B4%AD%E4%B9%B0%E8%AE%B0%E5%BD%95%E6%96%B9%E6%B3%95"><span class="toc-text">第一步 创建接口，定义保存购买记录方法</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%BA%8C%E6%AD%A5-%E5%88%9B%E5%BB%BA%E5%A4%9A%E4%B8%AA%E7%AD%96%E7%95%A5%E7%B1%BB%EF%BC%88%E4%B8%93%E8%BE%91%E3%80%81vip%E3%80%81%E5%A3%B0%E9%9F%B3%EF%BC%89%E5%AE%9E%E7%8E%B0%E6%8E%A5%E5%8F%A3%E6%96%B9%E6%B3%95"><span class="toc-text">第二步 创建多个策略类（专辑、vip、声音）实现接口方法</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%89%E6%AD%A5-%E5%88%9B%E5%BB%BA%E7%8E%AF%E5%A2%83%E7%B1%BB%EF%BC%8C%E6%A0%B9%E6%8D%AE%E8%B4%AD%E4%B9%B0%E7%B1%BB%E5%9E%8B%E5%88%87%E6%8D%A2%E4%BD%BF%E7%94%A8%E4%B8%8D%E5%90%8C%E5%AE%9E%E7%8E%B0%E7%B1%BB"><span class="toc-text">第三步 创建环境类，根据购买类型切换使用不同实现类</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E5%9B%9B%E6%AD%A5-%E4%BD%BF%E7%94%A8%E7%AD%96%E7%95%A5%E6%A8%A1%E5%BC%8F%E4%BF%AE%E6%94%B9%E8%B0%83%E7%94%A8%E5%9C%B0%E6%96%B9"><span class="toc-text">第四步 使用策略模式修改调用地方</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3%E3%80%81%E8%AE%A2%E5%8D%95%E5%85%B6%E4%BB%96%E6%8E%A5%E5%8F%A3"><span class="toc-text">3、订单其他接口</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%B9%E6%8D%AE%E8%AE%A2%E5%8D%95%E7%BC%96%E5%8F%B7%E6%9F%A5%E8%AF%A2%E8%AE%A2%E5%8D%95%E6%95%B0%E6%8D%AE"><span class="toc-text">根据订单编号查询订单数据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9F%A5%E8%AF%A2%E5%BD%93%E5%89%8D%E7%94%A8%E6%88%B7%E6%89%80%E6%9C%89%E8%AE%A2%E5%8D%95"><span class="toc-text">查询当前用户所有订单</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4%E3%80%81%E5%BE%AE%E4%BF%A1%E6%94%AF%E4%BB%98"><span class="toc-text">4、微信支付</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E5%8F%91%E8%B5%B7%E5%BE%AE%E4%BF%A1%E6%94%AF%E4%BB%98%E8%AF%B7%E6%B1%82%E6%8E%A5%E5%8F%A3"><span class="toc-text">4.1 发起微信支付请求接口</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#WxPayApiController"><span class="toc-text">WxPayApiController</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Service"><span class="toc-text">Service</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%BF%9D%E5%AD%98%E6%94%AF%E4%BB%98%E8%AE%B0%E5%BD%95%E6%96%B9%E6%B3%95"><span class="toc-text">保存支付记录方法</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E6%9F%A5%E8%AF%A2%E5%BE%AE%E4%BF%A1%E6%94%AF%E4%BB%98%E7%8A%B6%E6%80%81"><span class="toc-text">4.2 查询微信支付状态</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E6%94%AF%E4%BB%98%E6%88%90%E5%8A%9F%E5%BE%AE%E4%BF%A1%E5%9B%9E%E8%B0%83%E9%80%9A%E7%9F%A5"><span class="toc-text">4.3 支付成功微信回调通知</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5%E3%80%81%E6%B5%8B%E8%AF%95%E5%BE%AE%E4%BF%A1%E6%94%AF%E4%BB%98%E6%96%B9%E5%BC%8F"><span class="toc-text">5、测试微信支付方式</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AC%AC%E4%B8%80%E6%AD%A5-%E6%89%BE%E5%88%B0%E6%94%AF%E4%BB%98%E6%B5%8B%E8%AF%95%E4%BD%8D%E7%BD%AE"><span class="toc-text">第一步 找到支付测试位置</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AC%AC%E4%BA%8C%E6%AD%A5-%E4%BD%BF%E7%94%A8%E5%BE%AE%E4%BF%A1%E6%94%AF%E4%BB%98%E6%96%B9%E5%BC%8F%E7%94%9F%E6%88%90%E8%AE%A2%E5%8D%95%EF%BC%8C%E4%B8%8D%E6%94%AF%E4%BB%98"><span class="toc-text">第二步 使用微信支付方式生成订单，不支付</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AC%AC%E4%B8%89%E6%AD%A5-%E5%A4%8D%E5%88%B6%E8%AE%A2%E5%8D%95%E7%BC%96%E5%8F%B7%E5%88%B0%E6%94%AF%E4%BB%98%E6%B5%8B%E8%AF%95%E9%87%8C%E9%9D%A2"><span class="toc-text">第三步 复制订单编号到支付测试里面</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AC%AC%E5%9B%9B%E6%AD%A5-%E4%BF%AE%E6%94%B9%E8%AE%A2%E5%8D%95%E7%BC%96%E5%8F%B7%EF%BC%8C%E9%87%8D%E6%96%B0%E5%A4%8D%E5%88%B6%E8%BF%87%E6%9D%A5"><span class="toc-text">第四步 修改订单编号，重新复制过来</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AC%AC%E4%BA%94%E6%AD%A5-%E4%BF%AE%E6%94%B9nacos%E5%BE%AE%E4%BF%A1%E7%9B%B8%E5%85%B3%E5%80%BC"><span class="toc-text">第五步 修改nacos微信相关值</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/09/17/%E7%AE%97%E6%B3%95%E5%AD%A6%E4%B9%A0%E6%97%A5%E8%AE%B0/" title="算法学习日记">算法学习日记</a><time datetime="2026-09-17T15:39:46.000Z" title="发表于 2026-09-17 23:39:46">2026-09-17</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Seata%E6%95%B4%E5%90%88/" title="听书项目专题｜Seata 集成笔记">听书项目专题｜Seata 集成笔记</a><time datetime="2026-09-09T10:05:59.000Z" title="发表于 2026-09-09 18:05:59">2026-09-09</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-RabbitMQ%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF/" title="听书项目专题｜RabbitMQ 可靠性与延迟消息">听书项目专题｜RabbitMQ 可靠性与延迟消息</a><time datetime="2026-09-09T10:05:35.000Z" title="发表于 2026-09-09 18:05:35">2026-09-09</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/09/04/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day17/" title="听书项目 Day 17｜分布式事务与 Seata">听书项目 Day 17｜分布式事务与 Seata</a><time datetime="2026-09-04T10:00:00.000Z" title="发表于 2026-09-04 18:00:00">2026-09-04</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/09/03/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day16/" title="听书项目 Day 16｜充值与 XXL-JOB 任务调度">听书项目 Day 16｜充值与 XXL-JOB 任务调度</a><time datetime="2026-09-03T10:00:00.000Z" title="发表于 2026-09-03 18:00:00">2026-09-03</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By 𝐺ℎ𝑎𝑜</span></div><div class="footer_custom_text"><i class="fas fa-shield-alt"></i> <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">晋ICP备2026009317号</a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@6.1.9/dist/fancybox/fancybox.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/node-snackbar@0.1.16/dist/snackbar.min.js"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.outerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 30000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        if (typeof svg === 'string') {
+          openSvgInNewTab({ source: svg, initViewBox })
+          return
+        }
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+
+    // Avoid binding multiple times on themeChange/pjax
+    if (wrap.__mermaidGestureBound) return
+    wrap.__mermaidGestureBound = true
+
+    // Helper: map client (viewport) coordinate -> viewBox coordinate
+    const clientToViewBox = (clientX, clientY) => {
+      const rect = svg.getBoundingClientRect()
+      const vb = wrap.__mermaidCurViewBox || getSvgViewBox(svg)
+      const x = vb[0] + (clientX - rect.left) * (vb[2] / rect.width)
+      const y = vb[1] + (clientY - rect.top) * (vb[3] / rect.height)
+      return { x, y, rect, vb }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      startCenter: null
+    }
+
+    const clampVb = vb => {
+      const init = wrap.__mermaidInitViewBox || vb
+      const minW = init[2] * 0.1
+      const maxW = init[2] * 10
+      const minH = init[3] * 0.1
+      const maxH = init[3] * 10
+      vb[2] = clamp(vb[2], minW, maxW)
+      vb[3] = clamp(vb[3], minH, maxH)
+      return vb
+    }
+
+    const setCurVb = vb => {
+      vb = clampVb(vb)
+      wrap.__mermaidCurViewBox = vb
+      setSvgViewBox(svg, vb)
+    }
+
+    const onPointerDown = e => {
+      // Allow only primary button for mouse
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      if (state.pointers.size === 1) {
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        state.startCenter = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 }
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      // Pan with 1 pointer
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = [...state.pointers.values()][0]
+        const prev = { x: e.clientX - e.movementX, y: e.clientY - e.movementY }
+        // movementX/Y unreliable on touch, compute from stored last position
+        const last = wrap.__mermaidLastSinglePointer || p
+        const dxClient = p.x - last.x
+        const dyClient = p.y - last.y
+        wrap.__mermaidLastSinglePointer = p
+
+        const { rect } = clientToViewBox(p.x, p.y)
+        const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        const dx = dxClient * (vb[2] / rect.width)
+        const dy = dyClient * (vb[3] / rect.height)
+        setCurVb([vb[0] - dx, vb[1] - dy, vb[2], vb[3]])
+        return
+      }
+
+      // Pinch zoom with 2 pointers
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist // dist bigger => zoom in (viewBox smaller)
+
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const centerClient = { x: cx, y: cy }
+
+        const pxy = clientToViewBox(centerClient.x, centerClient.y)
+        const cpx = pxy.x
+        const cpy = pxy.y
+
+        const vb = zoomAtPoint(state.startVb, factor, cpx, cpy)
+        setCurVb(vb)
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+        state.startCenter = null
+        wrap.__mermaidLastSinglePointer = null
+      } else if (state.pointers.size === 1) {
+        // reset single pointer baseline to avoid jump
+        wrap.__mermaidLastSinglePointer = [...state.pointers.values()][0]
+      }
+    }
+
+    // Wheel zoom (mouse/trackpad)
+    const onWheel = e => {
+      // ctrlKey on mac trackpad pinch; we treat both as zoom
+      e.preventDefault()
+      const delta = e.deltaY
+      const zoomFactor = delta > 0 ? 1.1 : 0.9
+      const { x, y } = clientToViewBox(e.clientX, e.clientY)
+      const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      setCurVb(zoomAtPoint(vb, zoomFactor, x, y))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (!init) return
+      wrap.__mermaidCurViewBox = init.slice()
+      setSvgViewBox(svg, init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown)
+    svg.addEventListener('pointermove', onPointerMove)
+    svg.addEventListener('pointerup', onPointerUpOrCancel)
+    svg.addEventListener('pointercancel', onPointerUpOrCancel)
+    svg.addEventListener('wheel', onWheel, { passive: false })
+    svg.addEventListener('dblclick', onDblClick)
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+
+      // Clear old render (themeChange/pjax will rerun)
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      item.__mermaidGestureBound = false
+
+      const config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+
+      // mermaid v9 and v10 compatibility
+      typeof renderFn === 'string' ? renderMermaid(renderFn) : renderFn.then(({ svg }) => renderMermaid(svg))
+    })
+  }
+
+  const codeToMermaid = () => {
+    const codeMermaidEle = document.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    if (true) codeToMermaid()
+    const $mermaid = document.querySelectorAll('#article-container .mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = {"placeholder":"留下你的评论吧～","requiredFields":["nick"],"enableImage":true,"enableEmoji":true,"enableMath":true,"enableCodeHighlight":true,"sortBy":"like","displayVote":true,"perPageRateLimit":6,"antiXSS":true,"spamCheck":"akismet","commentBg":"url(xxx图片链接)","masterName":"博主","mailNotify":true,"serverNotify":false,"qmsgNotify":"falese","hideAdmin":true}
+
+  const getCount = () => {
+    const countELement = document.getElementById('twikoo-count')
+    if(!countELement) return
+    twikoo.getCommentsCount({
+      envId: 'https://twikoo.gcblog.fun',
+      region: '',
+      urls: [window.location.pathname],
+      includeReply: false
+    }).then(res => {
+      countELement.textContent = res[0].count
+    }).catch(err => {
+      console.error(err)
+    })
+  }
+
+  const init = (el = document, path = location.pathname) => {
+    twikoo.init({
+      el: el.querySelector('#twikoo-wrap'),
+      envId: 'https://twikoo.gcblog.fun',
+      region: '',
+      onCommentLoaded: () => {
+        btf.loadLightbox(document.querySelectorAll('#twikoo .tk-content img:not(.tk-owo-emotion)'))
+      },
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || path
+    })
+
+    
+
+    isShuoshuo && (window.shuoshuoComment.destroyTwikoo = () => {
+      if (el.children.length) {
+        el.innerHTML = ''
+        el.classList.add('no-comment')
+      }
+    })
+  }
+
+  const loadTwikoo = (el, path) => {
+    if (typeof twikoo === 'object') setTimeout(() => init(el, path), 0)
+    else btf.getScript('https://cdn.jsdelivr.net/npm/twikoo@1.6.44/dist/twikoo.all.min.js').then(() => init(el, path))
+  }
+
+  if (isShuoshuo) {
+    'Twikoo' === 'Twikoo'
+      ? window.shuoshuoComment = { loadComment: loadTwikoo }
+      : window.loadOtherComment = loadTwikoo
+    return
+  }
+
+  if ('Twikoo' === 'Twikoo' || !false) {
+    if (false) btf.loadComment(document.getElementById('twikoo-wrap'), loadTwikoo)
+    else loadTwikoo()
+  } else {
+    window.loadOtherComment = loadTwikoo
+  }
+})()</script></div><script src="/js/article-like.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><i class="fas fa-spinner fa-pulse" id="loading-status" hidden="hidden"></i><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="local-search-input"><input placeholder="请输入关键词搜索" type="text"/></div><hr/><div id="local-search-results"></div><div class="ais-Pagination" id="local-search-pagination" style="display:none;"><ul class="ais-Pagination-list"></ul></div><div id="local-search-stats"></div></div><div id="search-mask"></div><script src="/js/search/local-search.js?v=5.5.4"></script></div></div></body></html>
