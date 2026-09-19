@@ -226,7 +226,8 @@ body,
 
 /* Password-protected private shelf */
 .hidden-vault {
-  --vault-accent: var(--btn-bg, #2fa89a);
+  --vault-accent: #197a70;
+  --vault-action: #197a70;
   --vault-accent-soft: rgba(47, 168, 154, .12);
   --vault-border: rgba(31, 45, 61, .12);
   --vault-muted: var(--card-meta, #68747f);
@@ -257,6 +258,31 @@ body,
   color: var(--vault-muted);
   line-height: 1.75;
   text-wrap: pretty;
+}
+
+.hidden-vault__empty {
+  max-width: 680px;
+  padding: 36px 28px;
+  border: 1px solid var(--vault-border);
+  border-radius: 18px;
+  background: var(--card-bg);
+  text-align: center;
+}
+
+.hidden-vault__empty > i {
+  color: var(--vault-accent);
+  font-size: 1.4rem;
+}
+
+.hidden-vault__empty h2 {
+  margin: 14px 0 6px;
+  font-size: 1.25rem;
+}
+
+.hidden-vault__empty p {
+  margin: 0;
+  color: var(--vault-muted);
+  line-height: 1.7;
 }
 
 .hidden-vault__locked {
@@ -355,7 +381,7 @@ body,
   padding: 0 18px;
   border: 0;
   border-radius: 10px;
-  background: var(--vault-accent);
+  background: var(--vault-action);
   color: #fff;
   font: inherit;
   font-weight: 650;
@@ -445,7 +471,7 @@ body,
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 10px;
   border: 1px solid var(--vault-border);
   border-radius: 8px;
@@ -543,8 +569,15 @@ body,
 }
 
 [data-theme="dark"] .hidden-vault {
+  --vault-accent: #79d9cb;
+  --vault-action: #197a70;
   --vault-accent-soft: rgba(47, 168, 154, .18);
   --vault-border: rgba(255, 255, 255, .1);
+  --vault-muted: rgba(255, 255, 255, .68);
+}
+
+[data-theme="dark"] .hidden-vault__status {
+  color: #ff9a8e;
 }
 
 [data-theme="dark"] .hidden-vault__locked {

@@ -1,0 +1,784 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>听书项目 Day 17｜分布式事务与 Seata | 𝐺ℎ𝑎𝑜 の 𝐵𝑙𝑜𝑔</title><meta name="author" content="𝐺ℎ𝑎𝑜"><meta name="copyright" content="𝐺ℎ𝑎𝑜"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#f7fbfa"><meta name="description" content="学习分布式事务方案、Seata 的 TC&#x2F;TM&#x2F;RM 角色与集成步骤，并整理登录模块的面试复习笔记。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="听书项目 Day 17｜分布式事务与 Seata">
+<meta property="og:url" content="https://gcblog.fun/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day17/index.html">
+<meta property="og:site_name" content="𝐺ℎ𝑎𝑜 の 𝐵𝑙𝑜𝑔">
+<meta property="og:description" content="学习分布式事务方案、Seata 的 TC&#x2F;TM&#x2F;RM 角色与集成步骤，并整理登录模块的面试复习笔记。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://gcblog.fun/img/touxiang.jpg">
+<meta property="article:published_time" content="2026-09-09T10:05:59.000Z">
+<meta property="article:modified_time" content="2026-09-19T03:43:02.646Z">
+<meta property="article:author" content="𝐺ℎ𝑎𝑜">
+<meta property="article:tag" content="Seata">
+<meta property="article:tag" content="分布式事务">
+<meta property="article:tag" content="听书项目">
+<meta property="article:tag" content="登录复习">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://gcblog.fun/img/touxiang.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "听书项目 Day 17｜分布式事务与 Seata",
+  "url": "https://gcblog.fun/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day17/",
+  "image": "https://gcblog.fun/img/touxiang.jpg",
+  "datePublished": "2026-09-09T10:05:59.000Z",
+  "dateModified": "2026-09-19T03:43:02.646Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "𝐺ℎ𝑎𝑜",
+      "url": "https://space.bilibili.com/1750548973"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://gcblog.fun/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day17/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//hm.baidu.com"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/node-snackbar@0.1.16/dist/snackbar.min.css" media="print" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@6.1.9/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#10211F')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#f7fbfa')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          const mediaQueryDark = window.matchMedia('(prefers-color-scheme: dark)')
+          const mediaQueryLight = window.matchMedia('(prefers-color-scheme: light)')
+
+          if (theme === undefined) {
+            if (mediaQueryLight.matches) activateLightMode()
+            else if (mediaQueryDark.matches) activateDarkMode()
+            else {
+              const hour = new Date().getHours()
+              const isNight = hour <= 6 || hour >= 18
+              isNight ? activateDarkMode() : activateLightMode()
+            }
+            mediaQueryDark.addEventListener('change', () => {
+              if (saveToLocal.get('theme') === undefined) {
+                e.matches ? activateDarkMode() : activateLightMode()
+              }
+            })
+          } else {
+            theme === 'light' ? activateLightMode() : activateDarkMode()
+          }
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "https://hm.baidu.com/hm.js?c9e3387abfb3432da895bea4bb17ba6d";
+  var s = document.getElementsByTagName("script")[0];
+  s.parentNode.insertBefore(hm, s);
+})();
+btf.addGlobalFn('pjaxComplete', () => {
+  _hmt.push(['_trackPageview',window.location.pathname])
+}, 'baidu_analytics')
+</script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"top_n_per_article":1,"unescape":false,"pagination":{"enable":false,"hitsPerPage":8},"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '天',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: {"limitCount":150,"languages":{"author":"作者: 𝐺ℎ𝑎𝑜","link":"链接: ","source":"来源: 𝐺ℎ𝑎𝑜 の 𝐵𝑙𝑜𝑔","info":"著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。"}},
+  lightbox: 'fancybox',
+  Snackbar: {"chs_to_cht":"已切换为繁体中文","cht_to_chs":"已切换为简体中文","day_to_night":"已切换为深色模式","night_to_day":"已切换为浅色模式","bgLight":"#49b1f5","bgDark":"#1f1f1f","position":"bottom-left"},
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: true,
+  },
+  autoDarkmode: true
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '听书项目 Day 17｜分布式事务与 Seata',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="/css/custom.css"><meta name="generator" content="Hexo 8.1.2"></head><body><script>window.paceOptions = {
+  restartOnPushState: false
+}
+
+btf.addGlobalFn('pjaxSend', () => {
+  Pace.restart()
+}, 'pace_restart')
+
+</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/themes/blue/pace-theme-minimal.min.css"/><script src="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/pace.min.js"></script><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/touxiang.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">29</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">68</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/hidden/"><i class="fa-fw fas fa-lock"></i><span> 私密</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> 关于</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg fixed" id="page-header" style="background-image: url(/img/suolong.webp);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="/img/avatar.png" alt="Logo"><span class="site-name">𝐺ℎ𝑎𝑜 の 𝐵𝑙𝑜𝑔</span></a><a class="nav-page-title" href="/"><span class="site-name">听书项目 Day 17｜分布式事务与 Seata</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/hidden/"><i class="fa-fw fas fa-lock"></i><span> 私密</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> 关于</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">听书项目 Day 17｜分布式事务与 Seata</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-09T10:05:59.000Z" title="发表于 2026-09-09 18:05:59">2026-09-09</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-19T03:43:02.646Z" title="更新于 2026-09-19 11:43:02">2026-09-19</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%BC%80%E5%8F%91/">开发</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%BC%80%E5%8F%91/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE/">听书项目</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">3.9k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>15分钟</span></span><span class="post-meta-separator">|</span><span id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="twikoo_visitors"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>学习分布式事务方案、Seata 的 TC&#x2F;TM&#x2F;RM 角色与集成步骤，并整理登录模块的面试复习笔记。</p>
+</blockquote>
+<h2 id="本篇要点"><a href="#本篇要点" class="headerlink" title="本篇要点"></a>本篇要点</h2><ul>
+<li>比较分布式事务的常见方案</li>
+<li>认识 Seata 的角色与配置</li>
+<li>复盘登录链路和面试问答</li>
+</ul>
+<blockquote>
+<p>**学习提示：**文末“自我介绍”是笔记中的示例口径，不应直接当成个人履历；Seata 配置中的示例口令和密钥已替换为占位符。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="分布式事务"><a href="#分布式事务" class="headerlink" title="分布式事务"></a>分布式事务</h2><h2 id="1、分布式事务理论"><a href="#1、分布式事务理论" class="headerlink" title="1、分布式事务理论"></a>1、分布式事务理论</h2><h3 id="1-1-本地事务"><a href="#1-1-本地事务" class="headerlink" title="1.1 本地事务"></a>1.1 本地事务</h3><ul>
+<li><p>在同一个数据库里面，操作多张表，<strong>保证同一个数据库多张表数据一致性</strong>，要么都成功，如果一个失败所有都失败，称为本地事务</p>
+</li>
+<li><p>事务四个特性：原子性、一致性、隔离性、持久性</p>
+</li>
+<li><p>如果不考虑事务隔离性，产生脏读、不可重复读、幻（虚）读，解决设置<strong>事务隔离级别</strong></p>
+</li>
+</ul>
+<p><strong>– MySQL默认隔离级别：可重复读</strong></p>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/a6427339651b10e8354c128ffaedd0d55b8b9ddc3a9d35f4458c47969fe9a347.png" alt="image-20251111090502365"></p>
+<ul>
+<li><strong>事务传播行为（经常问）</strong></li>
+</ul>
+<p>– 指的就是当一个事务方法被另一个事务方法调用时，这个事务方法应该如何进行。 </p>
+<p><strong>– REQUIRED：默认传播行为</strong>  如果当前有事务使用当前事务，如果没有创建新的事务</p>
+<p>– <strong>REQUIRES_NEW: 新建事务</strong></p>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/e77d06b55423c8967f5497c33df829c8d3a63ae741fd7a813009bf9dd746f44b.png" alt="image-20251111090844884"></p>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/cb03525bc072521bf4b8adc75c76d5c8832d4a48cb03200f30dc85074c468280.png" alt="image-20251111090856522"></p>
+<h3 id="1-2-分布式事务概念"><a href="#1-2-分布式事务概念" class="headerlink" title="1.2 分布式事务概念"></a>1.2 分布式事务概念</h3><ul>
+<li><p><strong>保证不同数据库中数据一致性</strong>。操作表在不同的数据库里面，保证不同数据库里面表操作，要么都成功，如果有一个失败所有都失败</p>
+</li>
+<li><p><strong>CAP定理</strong></p>
+</li>
+</ul>
+<p>在一个<code>分布式系统中</code>，当涉及读写操作时，只能保证一致性（Consistence）、可用性（Availability）、分区容错性（Partition Tolerance）三者中的两个，另外一个必须被牺牲。</p>
+<ul>
+<li>C 一致性（Consistency）：对某个指定的客户端来说，读操作保证能够返回最新的写操作结果</li>
+<li>A 可用性（Availability）：非故障的节点在合理的时间内返回合理的响应<code>（不是错误和超时的响应）</code></li>
+<li>P 分区容忍性（Partition Tolerance）：当出现网络分区后<code>（可能是丢包，也可能是连接中断，还可能是拥塞）</code>，系统能够继续“履行职责”</li>
+</ul>
+<h3 id="1-3-分布式事务解决方案"><a href="#1-3-分布式事务解决方案" class="headerlink" title="1.3 分布式事务解决方案"></a>1.3 分布式事务解决方案</h3><h4 id="第一种-两阶段提交（2PC）"><a href="#第一种-两阶段提交（2PC）" class="headerlink" title="第一种 两阶段提交（2PC）"></a>第一种 两阶段提交（2PC）</h4><h5 id="流程"><a href="#流程" class="headerlink" title="流程"></a>流程</h5><p>（1）投票阶段（voting phase）：参与者将操作结果通知协调者；</p>
+<p>（2）提交阶段（commit phase）：协调者收到参与者的通知后，协调者再向参与者发出通知，根据反馈情况决定各参与者是否要提交还是回滚；</p>
+<h5 id="特点"><a href="#特点" class="headerlink" title="特点"></a>特点</h5><p><strong>强一致性</strong></p>
+<h4 id="第二种-补偿事务（TCC）"><a href="#第二种-补偿事务（TCC）" class="headerlink" title="第二种 补偿事务（TCC）"></a>第二种 补偿事务（TCC）</h4><ul>
+<li>TCC事务其实主要包含<strong>两个阶段</strong>：Try阶段、Confirm&#x2F;Cancel阶段。其中Try阶段完成业务检查并资源预留，确保在Confirm阶段资源可用，可以最大程度的确保confirm阶段能够执行成功。</li>
+</ul>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/e76c0ddf78b8116442f31baa82576736fb1fc5c4d6d47631ad0b6816f584ebb5.png" alt="image-20251111094731847"></p>
+<h5 id="特点-1"><a href="#特点-1" class="headerlink" title="特点"></a>特点</h5><p><strong>最终一致性</strong></p>
+<h4 id="第三种-本地消息表（数据库）"><a href="#第三种-本地消息表（数据库）" class="headerlink" title="第三种  本地消息表（数据库）"></a>第三种  本地消息表（数据库）</h4><p><img src="https://cdn.gcblog.fun/tingshu-notes/fb7e9532f6fe498965ae2198c0380bbe72b51bde086b55bada1fe659e3ad7a9b.png" alt="image-20251111104526813"></p>
+<ul>
+<li><p>保证数据最终一致性</p>
+</li>
+<li><p>需求：生成订单，扣减库存，有两个系统：订单系统 和 库存系统</p>
+</li>
+</ul>
+<p>1、在订单系统中，创建两个表：订单表 和 消息表，一个订单对应一个消息。添加订单时候，向订单表添加一条记录，同时向消息表添加记录 （消息数据：订单编号、购买数量等），消息状态：1未发送 2完成 3 失败</p>
+<p>2、订单系统：每隔3s到消息表找到状态是1消息进行发送</p>
+<p>3、库存系统接收到订单系统发送过来消息，根据消息内容扣减库存</p>
+<p>4、库存扣减成功之后，调用订单系统接口通知订单扣减已经完成了，订单系统修改消息状态2</p>
+<ul>
+<li>库存扣减成功了，调用订单系统通知订单时候，突然网络出现问题，订单系统收不到通知，订单系统认为扣减库存失败了。订单系统重新发送消息，库存系统继续收到消息，不需要扣减，</li>
+<li><strong>保证消息幂等性</strong>。库存再去通知订单，扣减成功了，比如网络又出错了，订单继续重新发送</li>
+<li>消息出错，重试最多可以是3次数，如果超过3次不再发送，执行人工处理，把消息状态修改3</li>
+</ul>
+<h2 id="2、Seata"><a href="#2、Seata" class="headerlink" title="2、Seata"></a>2、Seata</h2><h3 id="Seata事务管理中三个重要角色"><a href="#Seata事务管理中三个重要角色" class="headerlink" title="Seata事务管理中三个重要角色"></a>Seata事务管理中三个重要角色</h3><ul>
+<li><p>1、<strong>TC (Transaction Coordinator) -</strong> **事务协调者：**全局事务决策者。</p>
+<p>2、<strong>TM (Transaction Manager) -</strong> **事务管理器：**全局事务发起者。</p>
+<p>3、<strong>RM (Resource Manager) -</strong> **资源管理器：**管理分支（本地）事务。</p>
+</li>
+</ul>
+<ul>
+<li>总体概括就是:TM是一个分布式事务的发起者和终结者，TC负责维护分布式事务的运行状态，而RM则负责本地事务的运行</li>
+</ul>
+<h3 id="分布式事务在Seata中的执行流程"><a href="#分布式事务在Seata中的执行流程" class="headerlink" title="分布式事务在Seata中的执行流程"></a>分布式事务在Seata中的执行流程</h3><p><img src="https://cdn.gcblog.fun/tingshu-notes/8cd042435c15372a05ac7b31d0facd0496ce1b11555ba11e9b3791bd39260c27.png" alt="image-20251111140121223"></p>
+<p>1、由TM发起开启全局事务到TC服务器</p>
+<p>2、TC服务器开启全局事务，会返回xid(本次全局事务的id)</p>
+<p>3、各个微服务模块分支事务，在TC服务器进行注册（注册到全局事务里面）</p>
+<p>4、各个微服务模块执行业务SQL，把各个模块执行结果报告给TC服务器</p>
+<p>5、TC会进行分支事务状态的统计，如果各个分支都成功，TC决定都提交，如果各个分支有任何一个失败的，TC决定都回滚</p>
+<h3 id="Seata四种不同的分布式事务模式"><a href="#Seata四种不同的分布式事务模式" class="headerlink" title="Seata四种不同的分布式事务模式"></a>Seata四种不同的分布式事务模式</h3><ul>
+<li>XA模式：强一致性分阶段事务模式，牺牲了一定的可用性，无业务侵入</li>
+<li>AT模式：最终一致的分阶段事务模式，无业务侵入，也是Seata的<strong>默认</strong>模式</li>
+<li>TCC模式：最终一致的分阶段事务模式，有业务侵入</li>
+<li>SAGA模式：长事务模式，有业务侵入</li>
+</ul>
+<p><strong>1、XA模式：强一致性分阶段事务模式，牺牲了一定的可用性，无业务侵入</strong></p>
+<p>首先，注册各个分支到TC里面</p>
+<p>第二，执行各个分支事务sql语句，<strong>但是sql语句只是执行不提交</strong></p>
+<p>第三，各个分支把执行sql语句结果告诉TC，最终由TC决定这些分支要么都提交，要么都不提交</p>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/4f54c4e2facc05a13fa6f29e252bfd85b7aa7aea3f0f7627105da2896b1ed541.png" alt="image-20241119144722778"></p>
+<p><strong>2、AT模式：默认模式，最终一致的分阶段事务模式，无业务侵入</strong></p>
+<p>首先，注册各个分支到TC里面</p>
+<p>第二，执行各个分支sql语句，执行之前记录当前状态到undolog里面，<strong>执行sql语句并提交</strong></p>
+<p>第三，各个分支把执行结果告诉TC，最终由TC决定这些分支要么都提交，要么都回滚，回滚使用undolog</p>
+<h3 id="整合Seata"><a href="#整合Seata" class="headerlink" title="整合Seata"></a>整合Seata</h3><h4 id="第一步-部署TC服务"><a href="#第一步-部署TC服务" class="headerlink" title="第一步 部署TC服务"></a>第一步 部署TC服务</h4><h5 id="1、创建TC服务使用数据库和表"><a href="#1、创建TC服务使用数据库和表" class="headerlink" title="1、创建TC服务使用数据库和表"></a><strong>1、创建TC服务使用数据库和表</strong></h5><p><img src="https://cdn.gcblog.fun/tingshu-notes/12c72f3880e91e608de00b0dc45bfb5a24426a3bf285eda4d798ea88270ea531.png" alt="image-20251111141556138"></p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 1. 执行语句创建名为 seata 的数据库</span></span><br><span class="line"><span class="keyword">CREATE</span> DATABASE seata <span class="keyword">DEFAULT</span> <span class="keyword">CHARACTER SET</span> utf8mb4 <span class="keyword">DEFAULT</span> <span class="keyword">COLLATE</span> utf8mb4_general_ci;</span><br><span class="line"></span><br><span class="line"><span class="comment">-- 2.执行脚本完成 Seata 表结构的创建</span></span><br><span class="line">use seata;</span><br><span class="line"></span><br><span class="line"><span class="comment">-- the table to store GlobalSession data</span></span><br><span class="line"><span class="keyword">CREATE TABLE</span> IF <span class="keyword">NOT</span> <span class="keyword">EXISTS</span> `global_table`</span><br><span class="line">(</span><br><span class="line">    `xid`                       <span class="type">VARCHAR</span>(<span class="number">128</span>) <span class="keyword">NOT NULL</span>,</span><br><span class="line">    `transaction_id`            <span class="type">BIGINT</span>,</span><br><span class="line">    `status`                    TINYINT      <span class="keyword">NOT NULL</span>,</span><br><span class="line">    `application_id`            <span class="type">VARCHAR</span>(<span class="number">32</span>),</span><br><span class="line">    `transaction_service_group` <span class="type">VARCHAR</span>(<span class="number">32</span>),</span><br><span class="line">    `transaction_name`          <span class="type">VARCHAR</span>(<span class="number">128</span>),</span><br><span class="line">    `timeout`                   <span class="type">INT</span>,</span><br><span class="line">    `begin_time`                <span class="type">BIGINT</span>,</span><br><span class="line">    `application_data`          <span class="type">VARCHAR</span>(<span class="number">2000</span>),</span><br><span class="line">    `gmt_create`                DATETIME,</span><br><span class="line">    `gmt_modified`              DATETIME,</span><br><span class="line">    <span class="keyword">PRIMARY KEY</span> (`xid`),</span><br><span class="line">    KEY `idx_status_gmt_modified` (`status` , `gmt_modified`),</span><br><span class="line">    KEY `idx_transaction_id` (`transaction_id`)</span><br><span class="line">) ENGINE <span class="operator">=</span> InnoDB</span><br><span class="line">  <span class="keyword">DEFAULT</span> CHARSET <span class="operator">=</span> utf8mb4;</span><br><span class="line"></span><br><span class="line"><span class="comment">-- the table to store BranchSession data</span></span><br><span class="line"><span class="keyword">CREATE TABLE</span> IF <span class="keyword">NOT</span> <span class="keyword">EXISTS</span> `branch_table`</span><br><span class="line">(</span><br><span class="line">    `branch_id`         <span class="type">BIGINT</span>       <span class="keyword">NOT NULL</span>,</span><br><span class="line">    `xid`               <span class="type">VARCHAR</span>(<span class="number">128</span>) <span class="keyword">NOT NULL</span>,</span><br><span class="line">    `transaction_id`    <span class="type">BIGINT</span>,</span><br><span class="line">    `resource_group_id` <span class="type">VARCHAR</span>(<span class="number">32</span>),</span><br><span class="line">    `resource_id`       <span class="type">VARCHAR</span>(<span class="number">256</span>),</span><br><span class="line">    `branch_type`       <span class="type">VARCHAR</span>(<span class="number">8</span>),</span><br><span class="line">    `status`            TINYINT,</span><br><span class="line">    `client_id`         <span class="type">VARCHAR</span>(<span class="number">64</span>),</span><br><span class="line">    `application_data`  <span class="type">VARCHAR</span>(<span class="number">2000</span>),</span><br><span class="line">    `gmt_create`        DATETIME(<span class="number">6</span>),</span><br><span class="line">    `gmt_modified`      DATETIME(<span class="number">6</span>),</span><br><span class="line">    <span class="keyword">PRIMARY KEY</span> (`branch_id`),</span><br><span class="line">    KEY `idx_xid` (`xid`)</span><br><span class="line">) ENGINE <span class="operator">=</span> InnoDB</span><br><span class="line">  <span class="keyword">DEFAULT</span> CHARSET <span class="operator">=</span> utf8mb4;</span><br><span class="line"></span><br><span class="line"><span class="comment">-- the table to store lock data</span></span><br><span class="line"><span class="keyword">CREATE TABLE</span> IF <span class="keyword">NOT</span> <span class="keyword">EXISTS</span> `lock_table`</span><br><span class="line">(</span><br><span class="line">    `row_key`        <span class="type">VARCHAR</span>(<span class="number">128</span>) <span class="keyword">NOT NULL</span>,</span><br><span class="line">    `xid`            <span class="type">VARCHAR</span>(<span class="number">128</span>),</span><br><span class="line">    `transaction_id` <span class="type">BIGINT</span>,</span><br><span class="line">    `branch_id`      <span class="type">BIGINT</span>       <span class="keyword">NOT NULL</span>,</span><br><span class="line">    `resource_id`    <span class="type">VARCHAR</span>(<span class="number">256</span>),</span><br><span class="line">    `table_name`     <span class="type">VARCHAR</span>(<span class="number">32</span>),</span><br><span class="line">    `pk`             <span class="type">VARCHAR</span>(<span class="number">36</span>),</span><br><span class="line">    `status`         TINYINT      <span class="keyword">NOT NULL</span> <span class="keyword">DEFAULT</span> <span class="string">&#x27;0&#x27;</span> COMMENT <span class="string">&#x27;0:locked ,1:rollbacking&#x27;</span>,</span><br><span class="line">    `gmt_create`     DATETIME,</span><br><span class="line">    `gmt_modified`   DATETIME,</span><br><span class="line">    <span class="keyword">PRIMARY KEY</span> (`row_key`),</span><br><span class="line">    KEY `idx_status` (`status`),</span><br><span class="line">    KEY `idx_branch_id` (`branch_id`),</span><br><span class="line">    KEY `idx_xid_and_branch_id` (`xid` , `branch_id`)</span><br><span class="line">) ENGINE <span class="operator">=</span> InnoDB</span><br><span class="line">  <span class="keyword">DEFAULT</span> CHARSET <span class="operator">=</span> utf8mb4;</span><br><span class="line"></span><br><span class="line"><span class="keyword">CREATE TABLE</span> IF <span class="keyword">NOT</span> <span class="keyword">EXISTS</span> `distributed_lock`</span><br><span class="line">(</span><br><span class="line">    `lock_key`       <span class="type">CHAR</span>(<span class="number">20</span>) <span class="keyword">NOT NULL</span>,</span><br><span class="line">    `lock_value`     <span class="type">VARCHAR</span>(<span class="number">20</span>) <span class="keyword">NOT NULL</span>,</span><br><span class="line">    `expire`         <span class="type">BIGINT</span>,</span><br><span class="line">    <span class="keyword">primary key</span> (`lock_key`)</span><br><span class="line">) ENGINE <span class="operator">=</span> InnoDB</span><br><span class="line">  <span class="keyword">DEFAULT</span> CHARSET <span class="operator">=</span> utf8mb4;</span><br><span class="line"></span><br><span class="line"><span class="keyword">INSERT INTO</span> `distributed_lock` (lock_key, lock_value, expire) <span class="keyword">VALUES</span> (<span class="string">&#x27;AsyncCommitting&#x27;</span>, <span class="string">&#x27; &#x27;</span>, <span class="number">0</span>);</span><br><span class="line"><span class="keyword">INSERT INTO</span> `distributed_lock` (lock_key, lock_value, expire) <span class="keyword">VALUES</span> (<span class="string">&#x27;RetryCommitting&#x27;</span>, <span class="string">&#x27; &#x27;</span>, <span class="number">0</span>);</span><br><span class="line"><span class="keyword">INSERT INTO</span> `distributed_lock` (lock_key, lock_value, expire) <span class="keyword">VALUES</span> (<span class="string">&#x27;RetryRollbacking&#x27;</span>, <span class="string">&#x27; &#x27;</span>, <span class="number">0</span>);</span><br><span class="line"><span class="keyword">INSERT INTO</span> `distributed_lock` (lock_key, lock_value, expire) <span class="keyword">VALUES</span> (<span class="string">&#x27;TxTimeoutCheck&#x27;</span>, <span class="string">&#x27; &#x27;</span>, <span class="number">0</span>);</span><br></pre></td></tr></table></figure>
+
+<h5 id="2、在Nacos配置中心创建Seata服务核心配置文件"><a href="#2、在Nacos配置中心创建Seata服务核心配置文件" class="headerlink" title="2、在Nacos配置中心创建Seata服务核心配置文件"></a><strong>2、在Nacos配置中心创建Seata服务核心配置文件</strong></h5><p><img src="https://cdn.gcblog.fun/tingshu-notes/3d6c67be4768c0b16c1a5e7c3f87a98d5b04986eda2eca6c024e646f8da49474.png" alt="image-20251111143202713"></p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#For details about configuration items, see https://seata.io/zh-cn/docs/user/configurations.html</span></span><br><span class="line"><span class="comment">#Transport configuration, for client and server</span></span><br><span class="line"><span class="attr">transport.type</span>=<span class="string">TCP</span></span><br><span class="line"><span class="attr">transport.server</span>=<span class="string">NIO</span></span><br><span class="line"><span class="attr">transport.heartbeat</span>=<span class="string">true</span></span><br><span class="line"><span class="attr">transport.enableTmClientBatchSendRequest</span>=<span class="string">false</span></span><br><span class="line"><span class="attr">transport.enableRmClientBatchSendRequest</span>=<span class="string">true</span></span><br><span class="line"><span class="attr">transport.enableTcServerBatchSendResponse</span>=<span class="string">false</span></span><br><span class="line"><span class="attr">transport.rpcRmRequestTimeout</span>=<span class="string">30000</span></span><br><span class="line"><span class="attr">transport.rpcTmRequestTimeout</span>=<span class="string">30000</span></span><br><span class="line"><span class="attr">transport.rpcTcRequestTimeout</span>=<span class="string">30000</span></span><br><span class="line"><span class="attr">transport.threadFactory.bossThreadPrefix</span>=<span class="string">NettyBoss</span></span><br><span class="line"><span class="attr">transport.threadFactory.workerThreadPrefix</span>=<span class="string">NettyServerNIOWorker</span></span><br><span class="line"><span class="attr">transport.threadFactory.serverExecutorThreadPrefix</span>=<span class="string">NettyServerBizHandler</span></span><br><span class="line"><span class="attr">transport.threadFactory.shareBossWorker</span>=<span class="string">false</span></span><br><span class="line"><span class="attr">transport.threadFactory.clientSelectorThreadPrefix</span>=<span class="string">NettyClientSelector</span></span><br><span class="line"><span class="attr">transport.threadFactory.clientSelectorThreadSize</span>=<span class="string">1</span></span><br><span class="line"><span class="attr">transport.threadFactory.clientWorkerThreadPrefix</span>=<span class="string">NettyClientWorkerThread</span></span><br><span class="line"><span class="attr">transport.threadFactory.bossThreadSize</span>=<span class="string">1</span></span><br><span class="line"><span class="attr">transport.threadFactory.workerThreadSize</span>=<span class="string">default</span></span><br><span class="line"><span class="attr">transport.shutdown.wait</span>=<span class="string">3</span></span><br><span class="line"><span class="attr">transport.serialization</span>=<span class="string">seata</span></span><br><span class="line"><span class="attr">transport.compressor</span>=<span class="string">none</span></span><br><span class="line"><span class="comment"></span></span><br><span class="line"><span class="comment">#Transaction routing rules configuration, only for the client</span></span><br><span class="line"><span class="attr">service.vgroupMapping.default_tx_group</span>=<span class="string">default</span></span><br><span class="line"><span class="comment">#If you use a registry, you can ignore it</span></span><br><span class="line"><span class="attr">service.default.grouplist</span>=<span class="string">127.0.0.1:8091</span></span><br><span class="line"><span class="attr">service.enableDegrade</span>=<span class="string">false</span></span><br><span class="line"><span class="attr">service.disableGlobalTransaction</span>=<span class="string">false</span></span><br><span class="line"><span class="comment"></span></span><br><span class="line"><span class="comment">#Transaction rule configuration, only for the client</span></span><br><span class="line"><span class="attr">client.rm.asyncCommitBufferLimit</span>=<span class="string">10000</span></span><br><span class="line"><span class="attr">client.rm.lock.retryInterval</span>=<span class="string">10</span></span><br><span class="line"><span class="attr">client.rm.lock.retryTimes</span>=<span class="string">30</span></span><br><span class="line"><span class="attr">client.rm.lock.retryPolicyBranchRollbackOnConflict</span>=<span class="string">true</span></span><br><span class="line"><span class="attr">client.rm.reportRetryCount</span>=<span class="string">5</span></span><br><span class="line"><span class="attr">client.rm.tableMetaCheckEnable</span>=<span class="string">true</span></span><br><span class="line"><span class="attr">client.rm.tableMetaCheckerInterval</span>=<span class="string">60000</span></span><br><span class="line"><span class="attr">client.rm.sqlParserType</span>=<span class="string">druid</span></span><br><span class="line"><span class="attr">client.rm.reportSuccessEnable</span>=<span class="string">false</span></span><br><span class="line"><span class="attr">client.rm.sagaBranchRegisterEnable</span>=<span class="string">false</span></span><br><span class="line"><span class="attr">client.rm.sagaJsonParser</span>=<span class="string">fastjson</span></span><br><span class="line"><span class="attr">client.rm.tccActionInterceptorOrder</span>=<span class="string">-2147482648</span></span><br><span class="line"><span class="attr">client.tm.commitRetryCount</span>=<span class="string">5</span></span><br><span class="line"><span class="attr">client.tm.rollbackRetryCount</span>=<span class="string">5</span></span><br><span class="line"><span class="attr">client.tm.defaultGlobalTransactionTimeout</span>=<span class="string">60000</span></span><br><span class="line"><span class="attr">client.tm.degradeCheck</span>=<span class="string">false</span></span><br><span class="line"><span class="attr">client.tm.degradeCheckAllowTimes</span>=<span class="string">10</span></span><br><span class="line"><span class="attr">client.tm.degradeCheckPeriod</span>=<span class="string">2000</span></span><br><span class="line"><span class="attr">client.tm.interceptorOrder</span>=<span class="string">-2147482648</span></span><br><span class="line"><span class="attr">client.undo.dataValidation</span>=<span class="string">true</span></span><br><span class="line"><span class="attr">client.undo.logSerialization</span>=<span class="string">jackson</span></span><br><span class="line"><span class="attr">client.undo.onlyCareUpdateColumns</span>=<span class="string">true</span></span><br><span class="line"><span class="attr">server.undo.logSaveDays</span>=<span class="string">7</span></span><br><span class="line"><span class="attr">server.undo.logDeletePeriod</span>=<span class="string">86400000</span></span><br><span class="line"><span class="attr">client.undo.logTable</span>=<span class="string">undo_log</span></span><br><span class="line"><span class="attr">client.undo.compress.enable</span>=<span class="string">true</span></span><br><span class="line"><span class="attr">client.undo.compress.type</span>=<span class="string">zip</span></span><br><span class="line"><span class="attr">client.undo.compress.threshold</span>=<span class="string">64k</span></span><br><span class="line"><span class="comment">#For TCC transaction mode</span></span><br><span class="line"><span class="attr">tcc.fence.logTableName</span>=<span class="string">tcc_fence_log</span></span><br><span class="line"><span class="attr">tcc.fence.cleanPeriod</span>=<span class="string">1h</span></span><br><span class="line"><span class="comment"></span></span><br><span class="line"><span class="comment">#Log rule configuration, for client and server</span></span><br><span class="line"><span class="attr">log.exceptionRate</span>=<span class="string">100</span></span><br><span class="line"><span class="comment"></span></span><br><span class="line"><span class="comment">#Transaction storage configuration, only for the server. The file, DB, and redis configuration values are optional.</span></span><br><span class="line"><span class="attr">store.mode</span>=<span class="string">db</span></span><br><span class="line"><span class="attr">store.lock.mode</span>=<span class="string">db</span></span><br><span class="line"><span class="attr">store.session.mode</span>=<span class="string">db</span></span><br><span class="line"><span class="comment">#Used for password encryption</span></span><br><span class="line"><span class="attr">store.publicKey</span>=<span class="string"></span></span><br><span class="line"><span class="comment"></span></span><br><span class="line"><span class="comment">#If `store.mode,store.lock.mode,store.session.mode` are not equal to `file`, you can remove the configuration block.</span></span><br><span class="line"><span class="attr">store.file.dir</span>=<span class="string">file_store/data</span></span><br><span class="line"><span class="attr">store.file.maxBranchSessionSize</span>=<span class="string">16384</span></span><br><span class="line"><span class="attr">store.file.maxGlobalSessionSize</span>=<span class="string">512</span></span><br><span class="line"><span class="attr">store.file.fileWriteBufferCacheSize</span>=<span class="string">16384</span></span><br><span class="line"><span class="attr">store.file.flushDiskMode</span>=<span class="string">async</span></span><br><span class="line"><span class="attr">store.file.sessionReloadReadSize</span>=<span class="string">100</span></span><br><span class="line"><span class="comment"></span></span><br><span class="line"><span class="comment">#These configurations are required if the `store mode` is `db`. If `store.mode,store.lock.mode,store.session.mode` are not equal to `db`, you can remove the configuration block.</span></span><br><span class="line"><span class="attr">store.db.datasource</span>=<span class="string">druid</span></span><br><span class="line"><span class="attr">store.db.dbType</span>=<span class="string">mysql</span></span><br><span class="line"><span class="attr">store.db.driverClassName</span>=<span class="string">com.mysql.jdbc.Driver</span></span><br><span class="line"><span class="attr">store.db.url</span>=<span class="string">jdbc:mysql://192.168.200.130:3306/seata?useUnicode=true&amp;rewriteBatchedStatements=true</span></span><br><span class="line"><span class="attr">store.db.user</span>=<span class="string">root</span></span><br><span class="line"><span class="attr">store.db.password</span>=<span class="string">&lt;SEATA_DB_PASSWORD&gt;</span></span><br><span class="line"><span class="attr">store.db.minConn</span>=<span class="string">5</span></span><br><span class="line"><span class="attr">store.db.maxConn</span>=<span class="string">30</span></span><br><span class="line"><span class="attr">store.db.globalTable</span>=<span class="string">global_table</span></span><br><span class="line"><span class="attr">store.db.branchTable</span>=<span class="string">branch_table</span></span><br><span class="line"><span class="attr">store.db.distributedLockTable</span>=<span class="string">distributed_lock</span></span><br><span class="line"><span class="attr">store.db.queryLimit</span>=<span class="string">100</span></span><br><span class="line"><span class="attr">store.db.lockTable</span>=<span class="string">lock_table</span></span><br><span class="line"><span class="attr">store.db.maxWait</span>=<span class="string">5000</span></span><br><span class="line"><span class="comment"></span></span><br><span class="line"><span class="comment">#These configurations are required if the `store mode` is `redis`. If `store.mode,store.lock.mode,store.session.mode` are not equal to `redis`, you can remove the configuration block.</span></span><br><span class="line"><span class="attr">store.redis.mode</span>=<span class="string">single</span></span><br><span class="line"><span class="attr">store.redis.single.host</span>=<span class="string">127.0.0.1</span></span><br><span class="line"><span class="attr">store.redis.single.port</span>=<span class="string">6379</span></span><br><span class="line"><span class="attr">store.redis.sentinel.masterName</span>=<span class="string"></span></span><br><span class="line"><span class="attr">store.redis.sentinel.sentinelHosts</span>=<span class="string"></span></span><br><span class="line"><span class="attr">store.redis.maxConn</span>=<span class="string">10</span></span><br><span class="line"><span class="attr">store.redis.minConn</span>=<span class="string">1</span></span><br><span class="line"><span class="attr">store.redis.maxTotal</span>=<span class="string">100</span></span><br><span class="line"><span class="attr">store.redis.database</span>=<span class="string">0</span></span><br><span class="line"><span class="attr">store.redis.password</span>=<span class="string"></span></span><br><span class="line"><span class="attr">store.redis.queryLimit</span>=<span class="string">100</span></span><br><span class="line"><span class="comment"></span></span><br><span class="line"><span class="comment">#Transaction rule configuration, only for the server</span></span><br><span class="line"><span class="attr">server.recovery.committingRetryPeriod</span>=<span class="string">1000</span></span><br><span class="line"><span class="attr">server.recovery.asynCommittingRetryPeriod</span>=<span class="string">1000</span></span><br><span class="line"><span class="attr">server.recovery.rollbackingRetryPeriod</span>=<span class="string">1000</span></span><br><span class="line"><span class="attr">server.recovery.timeoutRetryPeriod</span>=<span class="string">1000</span></span><br><span class="line"><span class="attr">server.maxCommitRetryTimeout</span>=<span class="string">-1</span></span><br><span class="line"><span class="attr">server.maxRollbackRetryTimeout</span>=<span class="string">-1</span></span><br><span class="line"><span class="attr">server.rollbackRetryTimeoutUnlockEnable</span>=<span class="string">false</span></span><br><span class="line"><span class="attr">server.distributedLockExpireTime</span>=<span class="string">10000</span></span><br><span class="line"><span class="attr">server.xaerNotaRetryTimeout</span>=<span class="string">60000</span></span><br><span class="line"><span class="attr">server.session.branchAsyncQueueSize</span>=<span class="string">5000</span></span><br><span class="line"><span class="attr">server.session.enableBranchAsyncRemove</span>=<span class="string">false</span></span><br><span class="line"><span class="attr">server.enableParallelRequestHandle</span>=<span class="string">false</span></span><br><span class="line"><span class="comment"></span></span><br><span class="line"><span class="comment">#Metrics configuration, only for the server</span></span><br><span class="line"><span class="attr">metrics.enabled</span>=<span class="string">false</span></span><br><span class="line"><span class="attr">metrics.registryType</span>=<span class="string">compact</span></span><br><span class="line"><span class="attr">metrics.exporterList</span>=<span class="string">prometheus</span></span><br><span class="line"><span class="attr">metrics.exporterPrometheusPort</span>=<span class="string">9898</span></span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>**store.mode&#x3D;db **存储模式选择为数据库</li>
+<li><strong>192.168.200.130</strong> MySQL主机地址</li>
+<li><strong>store.db.user&#x3D;root</strong> 数据库用户名</li>
+<li><strong>store.db.password&#x3D;<SEATA_DB_PASSWORD></strong> 数据库密码</li>
+</ul>
+<h5 id="3、下载Seata服务（windows版本），解压"><a href="#3、下载Seata服务（windows版本），解压" class="headerlink" title="3、下载Seata服务（windows版本），解压"></a>3、下载Seata服务（windows版本），解压</h5><p><img src="https://cdn.gcblog.fun/tingshu-notes/5bf3d57f2ad6921cb652ed2882947ea0c382210cbf36a5a75cdb970827473ef2.png" alt="image-20251111142748081"></p>
+<h5 id="4、修改解压文件夹里面配置文件"><a href="#4、修改解压文件夹里面配置文件" class="headerlink" title="4、修改解压文件夹里面配置文件"></a>4、修改解压文件夹里面配置文件</h5><p><img src="https://cdn.gcblog.fun/tingshu-notes/9b7480056c1cbac19f0c8fee66c640aab9aecc8cc32ba8557eaff83efcdcb0e4.png" alt="image-20251111142900641"></p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">server</span>:<span class="string"></span></span><br><span class="line">  <span class="attr">port</span>: <span class="string">7091</span></span><br><span class="line"></span><br><span class="line"><span class="attr">spring</span>:<span class="string"></span></span><br><span class="line">  <span class="attr">application</span>:<span class="string"></span></span><br><span class="line">    <span class="attr">name</span>: <span class="string">seata-server</span></span><br><span class="line"></span><br><span class="line"><span class="attr">logging</span>:<span class="string"></span></span><br><span class="line">  <span class="attr">config</span>: <span class="string">classpath:logback-spring.xml</span></span><br><span class="line">  <span class="attr">file</span>:<span class="string"></span></span><br><span class="line">    <span class="attr">path</span>: <span class="string">$&#123;user.home&#125;/logs/seata</span></span><br><span class="line">  <span class="attr">extend</span>:<span class="string"></span></span><br><span class="line">    <span class="attr">logstash-appender</span>:<span class="string"></span></span><br><span class="line">      <span class="attr">destination</span>: <span class="string">127.0.0.1:4560</span></span><br><span class="line">    <span class="attr">kafka-appender</span>:<span class="string"></span></span><br><span class="line">      <span class="attr">bootstrap-servers</span>: <span class="string">127.0.0.1:9092</span></span><br><span class="line">      <span class="attr">topic</span>: <span class="string">logback_to_logstash</span></span><br><span class="line"></span><br><span class="line"><span class="attr">console</span>:<span class="string"></span></span><br><span class="line">  <span class="attr">user</span>:<span class="string"></span></span><br><span class="line">    <span class="attr">username</span>: <span class="string">seata</span></span><br><span class="line">    <span class="attr">password</span>: <span class="string">&lt;SEATA_DB_PASSWORD&gt;</span></span><br><span class="line"><span class="attr">seata</span>:<span class="string"></span></span><br><span class="line">  <span class="attr">config</span>:<span class="string"></span></span><br><span class="line"><span class="comment">    # support: nacos, consul, apollo, zk, etcd3</span></span><br><span class="line">    <span class="attr">type</span>: <span class="string">nacos</span></span><br><span class="line">    <span class="attr">nacos</span>:<span class="string"></span></span><br><span class="line">      <span class="attr">server-addr</span>: <span class="string">192.168.200.130:8848</span></span><br><span class="line">      <span class="attr">namespace</span>:<span class="string"></span></span><br><span class="line">      <span class="attr">username</span>:<span class="string"></span></span><br><span class="line">      <span class="attr">password</span>:<span class="string"></span></span><br><span class="line">      <span class="attr">context-path</span>:<span class="string"></span></span><br><span class="line">      <span class="attr">data-id</span>: <span class="string">seataServer.properties</span></span><br><span class="line">  <span class="attr">registry</span>:<span class="string"></span></span><br><span class="line"><span class="comment">    # support: nacos, eureka, redis, zk, consul, etcd3, sofa</span></span><br><span class="line">    <span class="attr">type</span>: <span class="string">nacos</span></span><br><span class="line">    <span class="attr">nacos</span>:<span class="string"></span></span><br><span class="line">      <span class="attr">application</span>: <span class="string">seata-server</span></span><br><span class="line">      <span class="attr">server-addr</span>: <span class="string">192.168.200.130:8848</span></span><br><span class="line">      <span class="attr">namespace</span>:<span class="string"></span></span><br><span class="line">      <span class="attr">cluster</span>: <span class="string">default</span></span><br><span class="line">      <span class="attr">username</span>:<span class="string"></span></span><br><span class="line">      <span class="attr">password</span>:<span class="string"></span></span><br><span class="line">      <span class="attr">context-path</span>:<span class="string"></span></span><br><span class="line">  <span class="attr">store</span>:<span class="string"></span></span><br><span class="line"><span class="comment">    # support: file 、 db 、 redis</span></span><br><span class="line">    <span class="attr">mode</span>: <span class="string">file</span></span><br><span class="line"><span class="comment">#  server:</span></span><br><span class="line"><span class="comment">#    service-port: 8091 #If not configured, the default is &#x27;$&#123;server.port&#125; + 1000&#x27;</span></span><br><span class="line">  <span class="attr">security</span>:<span class="string"></span></span><br><span class="line">    <span class="attr">secretKey</span>: <span class="string">&lt;SEATA_SECRET_KEY&gt;</span></span><br><span class="line">    <span class="attr">tokenValidityInMilliseconds</span>: <span class="string">1800000</span></span><br><span class="line">    <span class="attr">ignore</span>:<span class="string"></span></span><br><span class="line">      <span class="attr">urls</span>: <span class="string">/,/**/*.css,/**/*.js,/**/*.html,/**/*.map,/**/*.svg,/**/*.png,/**/*.jpeg,/**/*.ico,/api/v1/auth/login</span></span><br></pre></td></tr></table></figure>
+
+<h5 id="5、启动Seata服务"><a href="#5、启动Seata服务" class="headerlink" title="5、启动Seata服务"></a>5、启动Seata服务</h5><p><img src="https://cdn.gcblog.fun/tingshu-notes/62594d4fb239a6902df832f74bd9b068b9811af9c90241a49de7080d3ecde23e.png" alt="image-20251111143321125"></p>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/a58d0a8f8767acb2726415c4c54dae3712e8d25ca0841b5c1ab0561388023bf7.png" alt="image-20251111145109741"></p>
+<h4 id="第二步-注册各个分支事务到TC"><a href="#第二步-注册各个分支事务到TC" class="headerlink" title="第二步 注册各个分支事务到TC"></a>第二步 注册各个分支事务到TC</h4><h5 id="1、注册的微服务模块添加依赖"><a href="#1、注册的微服务模块添加依赖" class="headerlink" title="1、注册的微服务模块添加依赖"></a>1、注册的微服务模块添加依赖</h5><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">&lt;!--Seata依赖  --&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>com.alibaba.cloud<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-cloud-starter-alibaba-seata<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">exclusions</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">exclusion</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>io.seata<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>seata-spring-boot-starter<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">exclusion</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">exclusions</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span><br><span class="line"></span><br><span class="line"><span class="comment">&lt;!--使用2.0.0的seata的版本--&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>io.seata<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>seata-spring-boot-starter<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.7.0<span class="tag">&lt;/<span class="name">version</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<h5 id="2、在微服务模块配置文件添加内容"><a href="#2、在微服务模块配置文件添加内容" class="headerlink" title="2、在微服务模块配置文件添加内容"></a>2、在微服务模块配置文件添加内容</h5><figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">spring.cloud.nacos.config.shared-configs[0].data-id</span>=<span class="string">seata-common.yaml</span></span><br><span class="line"><span class="attr">spring.cloud.nacos.config.shared-configs[0].refresh</span>=<span class="string">true</span></span><br></pre></td></tr></table></figure>
+
+<h5 id="3、nacos配置中心创建seata-common-yaml"><a href="#3、nacos配置中心创建seata-common-yaml" class="headerlink" title="3、nacos配置中心创建seata-common.yaml"></a>3、nacos配置中心创建seata-common.yaml</h5><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">seata:</span></span><br><span class="line">  <span class="comment"># 配置seata-server在nacos注册中心上的信息</span></span><br><span class="line">  <span class="attr">registry:</span></span><br><span class="line">    <span class="attr">type:</span> <span class="string">nacos</span></span><br><span class="line">    <span class="attr">nacos:</span></span><br><span class="line">      <span class="attr">namespace:</span></span><br><span class="line">      <span class="attr">application:</span> <span class="string">seata-server</span></span><br><span class="line">      <span class="attr">server-addr:</span> <span class="number">192.168</span><span class="number">.200</span><span class="number">.130</span><span class="string">:8848</span></span><br><span class="line">  <span class="comment"># 配置事务组的名称，需要和seata服务端的配置保持一致</span></span><br><span class="line">  <span class="attr">tx-service-group:</span> <span class="string">default_tx_group</span></span><br><span class="line">  <span class="attr">service:</span></span><br><span class="line">    <span class="attr">vgroup-mapping:</span></span><br><span class="line">      <span class="attr">default_tx_group:</span> <span class="string">default</span></span><br><span class="line">  <span class="attr">data-source-proxy-mode:</span> <span class="string">XA</span>   <span class="comment"># 配置事务管理模式为xa模式</span></span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="第三步-在业务代码添加注解"><a href="#第三步-在业务代码添加注解" class="headerlink" title="第三步 在业务代码添加注解"></a>第三步 在业务代码添加注解</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@GlobalTransactional</span></span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">saveUser</span><span class="params">(UserInfo userInfo)</span> &#123;</span><br><span class="line">    <span class="comment">//添加用户信息</span></span><br><span class="line">    <span class="built_in">this</span>.save(userInfo);</span><br><span class="line">    <span class="comment">//int i = 1/0;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">//初始化账户</span></span><br><span class="line">    <span class="comment">//方法一：远程调用 在service-account创建初始化接口</span></span><br><span class="line">    <span class="comment">// 在service-user进行远程调用实现</span></span><br><span class="line">    userAccountFeignClient.initUser(userInfo.getId());</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="自我介绍"><a href="#自我介绍" class="headerlink" title="自我介绍"></a>自我介绍</h2><p><strong>– 简单介绍</strong></p>
+<ul>
+<li>我叫张三，我今年28岁，我来自哪里，我有三年JAVA AI开发经验</li>
+</ul>
+<p><strong>– 列出你熟悉技术</strong></p>
+<ul>
+<li>我熟悉 SpringBoot、SpringCloud常用框架的使用</li>
+<li>我还熟悉数据库的使用，比如MySQL&#x2F;Redis等，<strong>另外还对MySQL优化有一定了解</strong></li>
+<li>除此之外，我还对RabbitMQ、JVM、JUC也有一定使用经验</li>
+</ul>
+<p><strong>– 介绍最近项目和核心点</strong></p>
+<ul>
+<li>我最近正在开发一个阅读类的项目，我在项目里面负责登录、订单模块，在这个项目中，redis、rabbitmq、多线程、设计模式等都有实际应用场景，另外我还参与了项目的重构优化</li>
+</ul>
+<h2 id="登录模块"><a href="#登录模块" class="headerlink" title="登录模块"></a>登录模块</h2><h3 id="流程-1"><a href="#流程-1" class="headerlink" title="流程"></a>流程</h3><ul>
+<li>前端发起登录请求，请求微信服务器返回code值</li>
+<li>前端拿着code请求后端登录接口</li>
+<li>后端登录接口根据code + 公众号id + 秘钥请求微信登录接口，返回openid</li>
+<li>根据openid判断是否第一次登录，如果第一次，添加用户信息并且初始化账号</li>
+<li>创建token，把token作为redis的key，value是用户信息，返回token给前端</li>
+<li>前端把token存储到cookie里面，每次请求携带token值，因为cookie不能跨域，每次请求把token放到请求里面进行传递</li>
+<li>后端每次从请求头获取到token，根据token查redis，如果可以查询到登录，否则不是登录</li>
+</ul>
+<h3 id="细节和技术"><a href="#细节和技术" class="headerlink" title="细节和技术"></a>细节和技术</h3><p><strong>1、远程调用实现方式</strong></p>
+<ul>
+<li>OpenFeign ：底层原理</li>
+<li>HttpClient</li>
+</ul>
+<p><strong>2、添加用户信息 并且初始化账号</strong></p>
+<ul>
+<li><strong>方案一：异步mq方式</strong></li>
+</ul>
+<p>– 如果第一次登录，首先添加用户信息到用户表</p>
+<p>– 之后发送mq消息，在账户模块接收消息，初始化账户信息</p>
+<p>– mq消息失败：确认模式、返回模式、消费端确认，redis持久化重试</p>
+<ul>
+<li><strong>方案二：远程调用实现</strong></li>
+</ul>
+<p>– – 如果第一次登录，首先添加用户信息到用户表</p>
+<p>– 之后远程调用账户模块接口，初始化账户信息</p>
+<p>– 保证不同数据库数据一致性，使用Seata实现分布式事务</p>
+<p>– Seata机制：组成、流程、模式等</p>
+<p><strong>3、生成的token按照什么规则生成的</strong></p>
+<ul>
+<li><strong>我们项目方案：</strong></li>
+</ul>
+<p>– 我们项目生成唯一的值，把值作为redis的key，value是用户信息</p>
+<p>– 使用redis存储用户信息</p>
+<ul>
+<li><strong>其他方案：</strong></li>
+</ul>
+<p>– 我们按照一定规则生成token，比如token包含userId + userName，对token进行加密</p>
+<p>– 不需要redis存储</p>
+<p>– 这种方案不好设置token过期时间</p>
+<p><strong>– 按照一定规则生成token，token加密，并且设置token过期时间，有工具：jwt</strong></p>
+<p><strong>4、cookie问题</strong></p>
+<p><strong>cookie不能跨域，每次请求时候把token放到请求头里面传递</strong></p>
+<p>**请求头有哪些？**语言、编码、类型      User-Agent请求浏览器类型</p>
+<h3 id="其他问题"><a href="#其他问题" class="headerlink" title="其他问题"></a>其他问题</h3><h4 id="1、redis过期问题"><a href="#1、redis过期问题" class="headerlink" title="1、redis过期问题"></a>1、redis过期问题</h4><ul>
+<li><strong>登录成功之后，判断当前redis数据还有多长时间过期</strong></li>
+<li><strong>比如约定过期时间小于60s，对数据续期</strong></li>
+</ul>
+<h4 id="2、多终端登录问题"><a href="#2、多终端登录问题" class="headerlink" title="2、多终端登录问题"></a>2、多终端登录问题</h4><ul>
+<li><p><strong>强制绑定手机号</strong></p>
+</li>
+<li><p>强制做人脸识别认证（调用腾讯云人脸识别接口）</p>
+</li>
+<li><p><strong>在不同端使用同一个用户登录，不同端操作数据同步？</strong></p>
+</li>
+</ul>
+<p>方案一：不能多端登录</p>
+<p>方案二：定时刷新，每隔10s</p>
+<h2 id="任务"><a href="#任务" class="headerlink" title="任务"></a>任务</h2><h3 id="1、准备自我介绍"><a href="#1、准备自我介绍" class="headerlink" title="1、准备自我介绍"></a>1、准备自我介绍</h3><h3 id="2、登录模块问题"><a href="#2、登录模块问题" class="headerlink" title="2、登录模块问题"></a>2、登录模块问题</h3><h3 id="3、订单模块问题"><a href="#3、订单模块问题" class="headerlink" title="3、订单模块问题"></a>3、订单模块问题</h3><h3 id="4、Seata总结概念"><a href="#4、Seata总结概念" class="headerlink" title="4、Seata总结概念"></a>4、Seata总结概念</h3></article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://space.bilibili.com/1750548973">𝐺ℎ𝑎𝑜</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://gcblog.fun/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day17/">https://gcblog.fun/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day17/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://gcblog.fun" target="_blank">𝐺ℎ𝑎𝑜 の 𝐵𝑙𝑜𝑔</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE/">听书项目</a><a class="post-meta__tags" href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1/">分布式事务</a><a class="post-meta__tags" href="/tags/Seata/">Seata</a><a class="post-meta__tags" href="/tags/%E7%99%BB%E5%BD%95%E5%A4%8D%E4%B9%A0/">登录复习</a></div><div class="post-share"><div class="social-share" data-image="/img/touxiang.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Seata%E6%95%B4%E5%90%88/" title="听书项目专题｜Seata 集成笔记"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">听书项目专题｜Seata 集成笔记</div></div><div class="info-2"><div class="info-item-1"> 集中整理 Seata 的全局事务流程、应用模式、TC 服务配置，以及服务端接入的学习步骤。  本篇要点 理解 TC、TM、RM 的职责 比较不同事务模式 核对 TC 部署与客户端配置   **学习提示：**本篇为 Seata 学习与配置笔记，不能仅凭配置示例推断跨服务事务已在生产环境验证；示例口令和密钥已占位。    3 Seata概述3.1 Seata流程 使用阿里巴巴提供分布式事务框架Seata实现  Seata事务管理中有三个重要的角色： 1、TC (Transaction Coordinator) - **事务协调者：**全局事务决策者。 2、TM (Transaction Manager) - **事务管理器：**全局事务发起者。 3、RM (Resource Manager) - **资源管理器：**管理分支（本地）事务。  实现流程：   1、由TM发起开启全局事务到TC服务器 2、TC服务器开启全局事务，会返回xid(本次全局事务的id) 3、各个微服务模块分支事务，在TC服务器进行注册（注册到全局事务里面） 4、各个微服务模块执行业务SQL，把各个模块执行结果...</div></div></div></a><a class="pagination-related" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day16/" title="听书项目 Day 16｜充值与 XXL-JOB 任务调度"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">听书项目 Day 16｜充值与 XXL-JOB 任务调度</div></div><div class="info-2"><div class="info-item-1"> 记录充值订单、支付结果处理和 XXL-JOB 的部署与接入，并复盘订单模块涉及的异步处理。  本篇要点 梳理充值订单与支付记录 学习 XXL-JOB 调度中心和执行器 复盘订单异步处理   **学习提示：**课程中的支付、延迟方案与调度配置应按实际代码和环境验证；不要把示例配置视为生产部署结果。    内容回顾1、设计模式优化你熟悉设计模式？ 你项目中是否使用过设计模式？ 你项目做过哪些代码级别优化？ – 使用策略模式优化添加购买记录 – 使用aop + 注解方式实现专辑缓存  策略模式：使用的就是面向对象的多态机制，从而实现同一行为在不同场景下有不同实现  场景：添加购买记录 订单包含vip、声音和专辑，购买这些都需要添加购买记录，买内容不同添加记录不同 这个场景使用策略模式进行优化   – 第一步 创建接口，定义添加购买记录方法 – 第二步 根据不同购买类型比较多个实现类，创建vip、声音和专辑实现类，分别实现方法 – 第三步 创建环境类，根据不同购买类型返回不同实现类对象 2、微信支付 发起微信支付请求 查询微信支付状态  项目中，对于微信支付如何判断成功或者失败？ 1 ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Seata%E6%95%B4%E5%90%88/" title="听书项目专题｜Seata 集成笔记"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-09</div><div class="info-item-2">听书项目专题｜Seata 集成笔记</div></div><div class="info-2"><div class="info-item-1"> 集中整理 Seata 的全局事务流程、应用模式、TC 服务配置，以及服务端接入的学习步骤。  本篇要点 理解 TC、TM、RM 的职责 比较不同事务模式 核对 TC 部署与客户端配置   **学习提示：**本篇为 Seata 学习与配置笔记，不能仅凭配置示例推断跨服务事务已在生产环境验证；示例口令和密钥已占位。    3 Seata概述3.1 Seata流程 使用阿里巴巴提供分布式事务框架Seata实现  Seata事务管理中有三个重要的角色： 1、TC (Transaction Coordinator) - **事务协调者：**全局事务决策者。 2、TM (Transaction Manager) - **事务管理器：**全局事务发起者。 3、RM (Resource Manager) - **资源管理器：**管理分支（本地）事务。  实现流程：   1、由TM发起开启全局事务到TC服务器 2、TC服务器开启全局事务，会返回xid(本次全局事务的id) 3、各个微服务模块分支事务，在TC服务器进行注册（注册到全局事务里面） 4、各个微服务模块执行业务SQL，把各个模块执行结果...</div></div></div></a><a class="pagination-related" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-RabbitMQ%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF/" title="听书项目专题｜RabbitMQ 可靠性与延迟消息"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-09</div><div class="info-item-2">听书项目专题｜RabbitMQ 可靠性与延迟消息</div></div><div class="info-2"><div class="info-item-1"> 整理 RabbitMQ 生产者确认、消费者确认、重试机制，以及死信队列和延迟插件两类延迟消息方案。  本篇要点 分开看生产者、Broker 和消费者确认 了解发送失败后的重试 比较死信队列与延迟插件   **学习提示：**本篇是 RabbitMQ 机制笔记；项目实际的订单超时取消方案要以对应代码为准，消息可靠性也不等于“绝不丢失、绝不重复”。    RabbitMQ使用1、消息可靠性配置1.1、介绍MQ消息的可靠性，一般需要三个方面一起保证：  生产者不丢数据 MQ服务器不丢数据 消费者不丢数据  保证消息不丢失有两种实现方式：  开启事务模式 消息确认模式（生产者，消费者）  **说明：**开启事务会大幅降低消息发送及接收效率，使用的相对较少，因此我们生产环境一般都采取消息确认模式，以下我们只是讲解消息确认模式 1.2、消息发送确认配置消息发送确认可以保证生产者不丢数据 封装发送端消息确认配置类12345678910111213141516171819202122232425262728293031323334353637383940414243@Slf4j@Componen...</div></div></div></a><a class="pagination-related" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day01/" title="听书项目 Day 01｜项目搭建与专辑管理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-09</div><div class="info-item-2">听书项目 Day 01｜项目搭建与专辑管理</div></div><div class="info-2"><div class="info-item-1"> 从听书项目概览和技术栈入手，记录开发环境、Maven 工程、分类接口、专辑管理及前端环境搭建的学习过程。  本篇要点 认识项目模块与技术栈 准备环境并搭建工程 梳理分类和专辑管理入口    内容回顾1、JVM 2、JUC  线程池  – 自定义线程池 ThreadPoolExecutor，传递7个参数 – 核心线程数规则 ： IO密集型 2N +1  ，CPU密集型 N+1 – 为什么不使用Executors工具类创建？而是自定义创建线程池 3、MySQL高级  索引底层结构 SQL优化  – 单表 – 多表（关联查询） 今天内容1、项目概述总体概述 谷粒随享，阅读类听书项目，类似于喜马拉雅 我们项目运行在微信小程序中  技术栈 SpringBoot：简化Spring应用的初始搭建以及开发过程  SpringBoot+SpringCloudAlibaba(Nacos)+OpenFeign+Gateway  MyBatis-Plus：持久层框架，也依赖mybatis  Redis：内存做缓存  MongoDB: 分布式文件存储的数据库  Rabbitmq：消息中间件；大型分布式项...</div></div></div></a><a class="pagination-related" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day14/" title="听书项目 Day 14｜订单提交与余额扣减"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-09</div><div class="info-item-2">听书项目 Day 14｜订单提交与余额扣减</div></div><div class="info-2"><div class="info-item-1"> 梳理订单创建、远程检查和扣减账户余额、消息可靠性与超时未支付订单处理方案。  本篇要点 串联提交订单的业务步骤 检查余额并进行条件扣减 区分消息可靠性与延迟取消方案   **学习提示：**笔记中列出 TTL&#x2F;死信队列和延迟插件等方案；方案介绍不等于当前项目的超时取消链路已使用 RabbitMQ 延迟消息。    内容回顾 登录 搜索 详情 订单  1、跳转到结算页面 订单：vip、专辑、声音 都是跳转结算页面，显示vip、专辑、声音  2、生成订单接口（一部分） 重复提交 数据加密判断  今天内容1、订单实现流程 2、订单接口OrderService订单方法123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384//提交订单接口@Overridepublic String submitOrder(OrderIn...</div></div></div></a><a class="pagination-related" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day09/" title="听书项目 Day 09｜声音列表、详情与播放进度"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-09</div><div class="info-item-2">听书项目 Day 09｜声音列表、详情与播放进度</div></div><div class="info-2"><div class="info-item-1"> 记录专辑声音列表、声音详情与播放进度处理，梳理跨服务调用和用户身份传递的问题。  本篇要点 查询专辑下的声音列表 分析声音详情数据来源 记录播放进度与远程调用边界    内容回顾1、根据一级分类Id获取全部分类2、关键字自动补全功能 completion ：数据加载到内存中，通过前缀匹配 自动补全接口  3、logstashELK  使用logstash收集项目日志信息 把收集到日志信息存储到es里面 使用kibana分析es日志信息  4、专辑详情 基础功能  根据专辑id查询声音列表分析   今天内容1、根据专辑id查询声音列表（复杂）流程：1、根据专辑id获取专辑下面所有声音列表，但是声音包含免费和收费的 2、判断用户是否登录状态，如果用户没有登录： – 判断如果专辑不是免费的，去掉试看的集数，其他是收费的 3、如果用户当前是登录状态：根据专辑类型判断 – 如果vip免费专辑：判断当前登录用户是否是vip用户，如果不是vip收费，如果是vip但是vip过期了也是收费 – 如果付费专辑：需要收费，但是查询当前用户是否购买专辑或者声音 — 如果用户购买过专辑，专辑里面声音可以...</div></div></div></a><a class="pagination-related" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day03/" title="听书项目 Day 03｜声音上传与管理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-09</div><div class="info-item-2">听书项目 Day 03｜声音上传与管理</div></div><div class="info-2"><div class="info-item-1"> 整理声音管理模块，从专辑选择、腾讯云点播上传，到声音列表、删除、修改等接口的学习记录。  本篇要点 分析声音与专辑的关系 学习音频上传与保存流程 梳理声音列表和维护接口    内容回顾专辑管理模块 保存专辑 专辑列表  –  行变列  删除专辑 修改专辑  今天内容声音管理模块1、保存声音1.1 分析实现以下接口  上传声音的接口（腾讯云云点播服务） 上传图片接口（已经完成了） 查询所有专辑接口 保存声音的接口   1.2 查询所有专辑接口 AlbumInfoApiController1234567@Operation(summary = &quot;获取当前用户全部专辑列表&quot;)@GetMapping(&quot;findUserAllAlbumList&quot;)public Result findUserAllAlbumList() &#123;    Long userId = 1L; //TODO 再完善    List&lt;AlbumInfo&gt; list = albumInfoService.findUserAllAlbumList(userId)...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div></div><div class="comment-wrap"><div><div id="twikoo-wrap"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/touxiang.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">𝐺ℎ𝑎𝑜</div><div class="author-info-description">记录 Java 学习、Spring Boot 项目、Hexo 博客搭建和日常技术笔记的个人博客。</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">29</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">68</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/2813078120ggup-cyber"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/2813078120ggup-cyber" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:gaochao_dev@qq.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://space.bilibili.com/1750548973" target="_blank" title="Bilibili"><i class="fab fa-bilibili" style="color: #00a1d6;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客！这里是我的个人空间，分享我的学习和生活点滴。希望你能喜欢这里的内容，让我们共同进步！(≖‿≖)✧</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%9C%AC%E7%AF%87%E8%A6%81%E7%82%B9"><span class="toc-text">本篇要点</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1"><span class="toc-text">分布式事务</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#1%E3%80%81%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1%E7%90%86%E8%AE%BA"><span class="toc-text">1、分布式事务理论</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-%E6%9C%AC%E5%9C%B0%E4%BA%8B%E5%8A%A1"><span class="toc-text">1.1 本地事务</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1%E6%A6%82%E5%BF%B5"><span class="toc-text">1.2 分布式事务概念</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88"><span class="toc-text">1.3 分布式事务解决方案</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%80%E7%A7%8D-%E4%B8%A4%E9%98%B6%E6%AE%B5%E6%8F%90%E4%BA%A4%EF%BC%882PC%EF%BC%89"><span class="toc-text">第一种 两阶段提交（2PC）</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#%E6%B5%81%E7%A8%8B"><span class="toc-text">流程</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#%E7%89%B9%E7%82%B9"><span class="toc-text">特点</span></a></li></ol></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%BA%8C%E7%A7%8D-%E8%A1%A5%E5%81%BF%E4%BA%8B%E5%8A%A1%EF%BC%88TCC%EF%BC%89"><span class="toc-text">第二种 补偿事务（TCC）</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#%E7%89%B9%E7%82%B9-1"><span class="toc-text">特点</span></a></li></ol></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%89%E7%A7%8D-%E6%9C%AC%E5%9C%B0%E6%B6%88%E6%81%AF%E8%A1%A8%EF%BC%88%E6%95%B0%E6%8D%AE%E5%BA%93%EF%BC%89"><span class="toc-text">第三种  本地消息表（数据库）</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2%E3%80%81Seata"><span class="toc-text">2、Seata</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Seata%E4%BA%8B%E5%8A%A1%E7%AE%A1%E7%90%86%E4%B8%AD%E4%B8%89%E4%B8%AA%E9%87%8D%E8%A6%81%E8%A7%92%E8%89%B2"><span class="toc-text">Seata事务管理中三个重要角色</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1%E5%9C%A8Seata%E4%B8%AD%E7%9A%84%E6%89%A7%E8%A1%8C%E6%B5%81%E7%A8%8B"><span class="toc-text">分布式事务在Seata中的执行流程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Seata%E5%9B%9B%E7%A7%8D%E4%B8%8D%E5%90%8C%E7%9A%84%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1%E6%A8%A1%E5%BC%8F"><span class="toc-text">Seata四种不同的分布式事务模式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B4%E5%90%88Seata"><span class="toc-text">整合Seata</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%80%E6%AD%A5-%E9%83%A8%E7%BD%B2TC%E6%9C%8D%E5%8A%A1"><span class="toc-text">第一步 部署TC服务</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#1%E3%80%81%E5%88%9B%E5%BB%BATC%E6%9C%8D%E5%8A%A1%E4%BD%BF%E7%94%A8%E6%95%B0%E6%8D%AE%E5%BA%93%E5%92%8C%E8%A1%A8"><span class="toc-text">1、创建TC服务使用数据库和表</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#2%E3%80%81%E5%9C%A8Nacos%E9%85%8D%E7%BD%AE%E4%B8%AD%E5%BF%83%E5%88%9B%E5%BB%BASeata%E6%9C%8D%E5%8A%A1%E6%A0%B8%E5%BF%83%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6"><span class="toc-text">2、在Nacos配置中心创建Seata服务核心配置文件</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#3%E3%80%81%E4%B8%8B%E8%BD%BDSeata%E6%9C%8D%E5%8A%A1%EF%BC%88windows%E7%89%88%E6%9C%AC%EF%BC%89%EF%BC%8C%E8%A7%A3%E5%8E%8B"><span class="toc-text">3、下载Seata服务（windows版本），解压</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#4%E3%80%81%E4%BF%AE%E6%94%B9%E8%A7%A3%E5%8E%8B%E6%96%87%E4%BB%B6%E5%A4%B9%E9%87%8C%E9%9D%A2%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6"><span class="toc-text">4、修改解压文件夹里面配置文件</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#5%E3%80%81%E5%90%AF%E5%8A%A8Seata%E6%9C%8D%E5%8A%A1"><span class="toc-text">5、启动Seata服务</span></a></li></ol></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%BA%8C%E6%AD%A5-%E6%B3%A8%E5%86%8C%E5%90%84%E4%B8%AA%E5%88%86%E6%94%AF%E4%BA%8B%E5%8A%A1%E5%88%B0TC"><span class="toc-text">第二步 注册各个分支事务到TC</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#1%E3%80%81%E6%B3%A8%E5%86%8C%E7%9A%84%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%A8%A1%E5%9D%97%E6%B7%BB%E5%8A%A0%E4%BE%9D%E8%B5%96"><span class="toc-text">1、注册的微服务模块添加依赖</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#2%E3%80%81%E5%9C%A8%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%A8%A1%E5%9D%97%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E6%B7%BB%E5%8A%A0%E5%86%85%E5%AE%B9"><span class="toc-text">2、在微服务模块配置文件添加内容</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#3%E3%80%81nacos%E9%85%8D%E7%BD%AE%E4%B8%AD%E5%BF%83%E5%88%9B%E5%BB%BAseata-common-yaml"><span class="toc-text">3、nacos配置中心创建seata-common.yaml</span></a></li></ol></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%89%E6%AD%A5-%E5%9C%A8%E4%B8%9A%E5%8A%A1%E4%BB%A3%E7%A0%81%E6%B7%BB%E5%8A%A0%E6%B3%A8%E8%A7%A3"><span class="toc-text">第三步 在业务代码添加注解</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%87%AA%E6%88%91%E4%BB%8B%E7%BB%8D"><span class="toc-text">自我介绍</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%99%BB%E5%BD%95%E6%A8%A1%E5%9D%97"><span class="toc-text">登录模块</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B5%81%E7%A8%8B-1"><span class="toc-text">流程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%BB%86%E8%8A%82%E5%92%8C%E6%8A%80%E6%9C%AF"><span class="toc-text">细节和技术</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B6%E4%BB%96%E9%97%AE%E9%A2%98"><span class="toc-text">其他问题</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1%E3%80%81redis%E8%BF%87%E6%9C%9F%E9%97%AE%E9%A2%98"><span class="toc-text">1、redis过期问题</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2%E3%80%81%E5%A4%9A%E7%BB%88%E7%AB%AF%E7%99%BB%E5%BD%95%E9%97%AE%E9%A2%98"><span class="toc-text">2、多终端登录问题</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BB%BB%E5%8A%A1"><span class="toc-text">任务</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1%E3%80%81%E5%87%86%E5%A4%87%E8%87%AA%E6%88%91%E4%BB%8B%E7%BB%8D"><span class="toc-text">1、准备自我介绍</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2%E3%80%81%E7%99%BB%E5%BD%95%E6%A8%A1%E5%9D%97%E9%97%AE%E9%A2%98"><span class="toc-text">2、登录模块问题</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3%E3%80%81%E8%AE%A2%E5%8D%95%E6%A8%A1%E5%9D%97%E9%97%AE%E9%A2%98"><span class="toc-text">3、订单模块问题</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4%E3%80%81Seata%E6%80%BB%E7%BB%93%E6%A6%82%E5%BF%B5"><span class="toc-text">4、Seata总结概念</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/09/17/%E7%AE%97%E6%B3%95%E5%AD%A6%E4%B9%A0%E6%97%A5%E8%AE%B0/" title="算法学习日记">算法学习日记</a><time datetime="2026-09-17T15:39:46.000Z" title="发表于 2026-09-17 23:39:46">2026-09-17</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day17/" title="听书项目 Day 17｜分布式事务与 Seata">听书项目 Day 17｜分布式事务与 Seata</a><time datetime="2026-09-09T10:05:59.000Z" title="发表于 2026-09-09 18:05:59">2026-09-09</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Seata%E6%95%B4%E5%90%88/" title="听书项目专题｜Seata 集成笔记">听书项目专题｜Seata 集成笔记</a><time datetime="2026-09-09T10:05:59.000Z" title="发表于 2026-09-09 18:05:59">2026-09-09</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day16/" title="听书项目 Day 16｜充值与 XXL-JOB 任务调度">听书项目 Day 16｜充值与 XXL-JOB 任务调度</a><time datetime="2026-09-09T10:05:48.000Z" title="发表于 2026-09-09 18:05:48">2026-09-09</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day15/" title="听书项目 Day 15｜支付状态、购买记录与微信支付">听书项目 Day 15｜支付状态、购买记录与微信支付</a><time datetime="2026-09-09T10:05:41.000Z" title="发表于 2026-09-09 18:05:41">2026-09-09</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By 𝐺ℎ𝑎𝑜</span></div><div class="footer_custom_text"><i class="fas fa-shield-alt"></i> <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">晋ICP备2026009317号</a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@6.1.9/dist/fancybox/fancybox.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/node-snackbar@0.1.16/dist/snackbar.min.js"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.outerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 30000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        if (typeof svg === 'string') {
+          openSvgInNewTab({ source: svg, initViewBox })
+          return
+        }
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+
+    // Avoid binding multiple times on themeChange/pjax
+    if (wrap.__mermaidGestureBound) return
+    wrap.__mermaidGestureBound = true
+
+    // Helper: map client (viewport) coordinate -> viewBox coordinate
+    const clientToViewBox = (clientX, clientY) => {
+      const rect = svg.getBoundingClientRect()
+      const vb = wrap.__mermaidCurViewBox || getSvgViewBox(svg)
+      const x = vb[0] + (clientX - rect.left) * (vb[2] / rect.width)
+      const y = vb[1] + (clientY - rect.top) * (vb[3] / rect.height)
+      return { x, y, rect, vb }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      startCenter: null
+    }
+
+    const clampVb = vb => {
+      const init = wrap.__mermaidInitViewBox || vb
+      const minW = init[2] * 0.1
+      const maxW = init[2] * 10
+      const minH = init[3] * 0.1
+      const maxH = init[3] * 10
+      vb[2] = clamp(vb[2], minW, maxW)
+      vb[3] = clamp(vb[3], minH, maxH)
+      return vb
+    }
+
+    const setCurVb = vb => {
+      vb = clampVb(vb)
+      wrap.__mermaidCurViewBox = vb
+      setSvgViewBox(svg, vb)
+    }
+
+    const onPointerDown = e => {
+      // Allow only primary button for mouse
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      if (state.pointers.size === 1) {
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        state.startCenter = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 }
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      // Pan with 1 pointer
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = [...state.pointers.values()][0]
+        const prev = { x: e.clientX - e.movementX, y: e.clientY - e.movementY }
+        // movementX/Y unreliable on touch, compute from stored last position
+        const last = wrap.__mermaidLastSinglePointer || p
+        const dxClient = p.x - last.x
+        const dyClient = p.y - last.y
+        wrap.__mermaidLastSinglePointer = p
+
+        const { rect } = clientToViewBox(p.x, p.y)
+        const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        const dx = dxClient * (vb[2] / rect.width)
+        const dy = dyClient * (vb[3] / rect.height)
+        setCurVb([vb[0] - dx, vb[1] - dy, vb[2], vb[3]])
+        return
+      }
+
+      // Pinch zoom with 2 pointers
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist // dist bigger => zoom in (viewBox smaller)
+
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const centerClient = { x: cx, y: cy }
+
+        const pxy = clientToViewBox(centerClient.x, centerClient.y)
+        const cpx = pxy.x
+        const cpy = pxy.y
+
+        const vb = zoomAtPoint(state.startVb, factor, cpx, cpy)
+        setCurVb(vb)
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+        state.startCenter = null
+        wrap.__mermaidLastSinglePointer = null
+      } else if (state.pointers.size === 1) {
+        // reset single pointer baseline to avoid jump
+        wrap.__mermaidLastSinglePointer = [...state.pointers.values()][0]
+      }
+    }
+
+    // Wheel zoom (mouse/trackpad)
+    const onWheel = e => {
+      // ctrlKey on mac trackpad pinch; we treat both as zoom
+      e.preventDefault()
+      const delta = e.deltaY
+      const zoomFactor = delta > 0 ? 1.1 : 0.9
+      const { x, y } = clientToViewBox(e.clientX, e.clientY)
+      const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      setCurVb(zoomAtPoint(vb, zoomFactor, x, y))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (!init) return
+      wrap.__mermaidCurViewBox = init.slice()
+      setSvgViewBox(svg, init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown)
+    svg.addEventListener('pointermove', onPointerMove)
+    svg.addEventListener('pointerup', onPointerUpOrCancel)
+    svg.addEventListener('pointercancel', onPointerUpOrCancel)
+    svg.addEventListener('wheel', onWheel, { passive: false })
+    svg.addEventListener('dblclick', onDblClick)
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+
+      // Clear old render (themeChange/pjax will rerun)
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      item.__mermaidGestureBound = false
+
+      const config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+
+      // mermaid v9 and v10 compatibility
+      typeof renderFn === 'string' ? renderMermaid(renderFn) : renderFn.then(({ svg }) => renderMermaid(svg))
+    })
+  }
+
+  const codeToMermaid = () => {
+    const codeMermaidEle = document.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    if (true) codeToMermaid()
+    const $mermaid = document.querySelectorAll('#article-container .mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = {"placeholder":"留下你的评论吧～","requiredFields":["nick"],"enableImage":true,"enableEmoji":true,"enableMath":true,"enableCodeHighlight":true,"sortBy":"like","displayVote":true,"perPageRateLimit":6,"antiXSS":true,"spamCheck":"akismet","commentBg":"url(xxx图片链接)","masterName":"博主","mailNotify":true,"serverNotify":false,"qmsgNotify":"falese","hideAdmin":true}
+
+  const getCount = () => {
+    const countELement = document.getElementById('twikoo-count')
+    if(!countELement) return
+    twikoo.getCommentsCount({
+      envId: 'https://twikoo.gcblog.fun',
+      region: '',
+      urls: [window.location.pathname],
+      includeReply: false
+    }).then(res => {
+      countELement.textContent = res[0].count
+    }).catch(err => {
+      console.error(err)
+    })
+  }
+
+  const init = (el = document, path = location.pathname) => {
+    twikoo.init({
+      el: el.querySelector('#twikoo-wrap'),
+      envId: 'https://twikoo.gcblog.fun',
+      region: '',
+      onCommentLoaded: () => {
+        btf.loadLightbox(document.querySelectorAll('#twikoo .tk-content img:not(.tk-owo-emotion)'))
+      },
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || path
+    })
+
+    
+
+    isShuoshuo && (window.shuoshuoComment.destroyTwikoo = () => {
+      if (el.children.length) {
+        el.innerHTML = ''
+        el.classList.add('no-comment')
+      }
+    })
+  }
+
+  const loadTwikoo = (el, path) => {
+    if (typeof twikoo === 'object') setTimeout(() => init(el, path), 0)
+    else btf.getScript('https://cdn.jsdelivr.net/npm/twikoo@1.6.44/dist/twikoo.all.min.js').then(() => init(el, path))
+  }
+
+  if (isShuoshuo) {
+    'Twikoo' === 'Twikoo'
+      ? window.shuoshuoComment = { loadComment: loadTwikoo }
+      : window.loadOtherComment = loadTwikoo
+    return
+  }
+
+  if ('Twikoo' === 'Twikoo' || !false) {
+    if (false) btf.loadComment(document.getElementById('twikoo-wrap'), loadTwikoo)
+    else loadTwikoo()
+  } else {
+    window.loadOtherComment = loadTwikoo
+  }
+})()</script></div><script src="/js/article-like.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><i class="fas fa-spinner fa-pulse" id="loading-status" hidden="hidden"></i><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="local-search-input"><input placeholder="请输入关键词搜索" type="text"/></div><hr/><div id="local-search-results"></div><div class="ais-Pagination" id="local-search-pagination" style="display:none;"><ul class="ais-Pagination-list"></ul></div><div id="local-search-stats"></div></div><div id="search-mask"></div><script src="/js/search/local-search.js?v=5.5.4"></script></div></div></body></html>

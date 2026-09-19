@@ -1,0 +1,810 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>听书项目 Day 10｜排行榜与详情性能优化 | 𝐺ℎ𝑎𝑜 の 𝐵𝑙𝑜𝑔</title><meta name="author" content="𝐺ℎ𝑎𝑜"><meta name="copyright" content="𝐺ℎ𝑎𝑜"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#f7fbfa"><meta name="description" content="梳理 Redis 在登录、统计、排行榜和幂等中的使用，并记录专辑排行榜与详情页并发优化思路。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="听书项目 Day 10｜排行榜与详情性能优化">
+<meta property="og:url" content="https://gcblog.fun/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day10/index.html">
+<meta property="og:site_name" content="𝐺ℎ𝑎𝑜 の 𝐵𝑙𝑜𝑔">
+<meta property="og:description" content="梳理 Redis 在登录、统计、排行榜和幂等中的使用，并记录专辑排行榜与详情页并发优化思路。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://gcblog.fun/img/touxiang.jpg">
+<meta property="article:published_time" content="2026-09-09T10:04:59.000Z">
+<meta property="article:modified_time" content="2026-09-19T03:43:02.636Z">
+<meta property="article:author" content="𝐺ℎ𝑎𝑜">
+<meta property="article:tag" content="Redis">
+<meta property="article:tag" content="听书项目">
+<meta property="article:tag" content="性能优化">
+<meta property="article:tag" content="排行榜">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://gcblog.fun/img/touxiang.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "听书项目 Day 10｜排行榜与详情性能优化",
+  "url": "https://gcblog.fun/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day10/",
+  "image": "https://gcblog.fun/img/touxiang.jpg",
+  "datePublished": "2026-09-09T10:04:59.000Z",
+  "dateModified": "2026-09-19T03:43:02.636Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "𝐺ℎ𝑎𝑜",
+      "url": "https://space.bilibili.com/1750548973"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://gcblog.fun/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day10/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//hm.baidu.com"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/node-snackbar@0.1.16/dist/snackbar.min.css" media="print" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@6.1.9/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#10211F')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#f7fbfa')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          const mediaQueryDark = window.matchMedia('(prefers-color-scheme: dark)')
+          const mediaQueryLight = window.matchMedia('(prefers-color-scheme: light)')
+
+          if (theme === undefined) {
+            if (mediaQueryLight.matches) activateLightMode()
+            else if (mediaQueryDark.matches) activateDarkMode()
+            else {
+              const hour = new Date().getHours()
+              const isNight = hour <= 6 || hour >= 18
+              isNight ? activateDarkMode() : activateLightMode()
+            }
+            mediaQueryDark.addEventListener('change', () => {
+              if (saveToLocal.get('theme') === undefined) {
+                e.matches ? activateDarkMode() : activateLightMode()
+              }
+            })
+          } else {
+            theme === 'light' ? activateLightMode() : activateDarkMode()
+          }
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "https://hm.baidu.com/hm.js?c9e3387abfb3432da895bea4bb17ba6d";
+  var s = document.getElementsByTagName("script")[0];
+  s.parentNode.insertBefore(hm, s);
+})();
+btf.addGlobalFn('pjaxComplete', () => {
+  _hmt.push(['_trackPageview',window.location.pathname])
+}, 'baidu_analytics')
+</script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"top_n_per_article":1,"unescape":false,"pagination":{"enable":false,"hitsPerPage":8},"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '天',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: {"limitCount":150,"languages":{"author":"作者: 𝐺ℎ𝑎𝑜","link":"链接: ","source":"来源: 𝐺ℎ𝑎𝑜 の 𝐵𝑙𝑜𝑔","info":"著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。"}},
+  lightbox: 'fancybox',
+  Snackbar: {"chs_to_cht":"已切换为繁体中文","cht_to_chs":"已切换为简体中文","day_to_night":"已切换为深色模式","night_to_day":"已切换为浅色模式","bgLight":"#49b1f5","bgDark":"#1f1f1f","position":"bottom-left"},
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: true,
+  },
+  autoDarkmode: true
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '听书项目 Day 10｜排行榜与详情性能优化',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="/css/custom.css"><meta name="generator" content="Hexo 8.1.2"></head><body><script>window.paceOptions = {
+  restartOnPushState: false
+}
+
+btf.addGlobalFn('pjaxSend', () => {
+  Pace.restart()
+}, 'pace_restart')
+
+</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/themes/blue/pace-theme-minimal.min.css"/><script src="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/pace.min.js"></script><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/touxiang.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">29</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">68</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/hidden/"><i class="fa-fw fas fa-lock"></i><span> 私密</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> 关于</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg fixed" id="page-header" style="background-image: url(/img/suolong.webp);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="/img/avatar.png" alt="Logo"><span class="site-name">𝐺ℎ𝑎𝑜 の 𝐵𝑙𝑜𝑔</span></a><a class="nav-page-title" href="/"><span class="site-name">听书项目 Day 10｜排行榜与详情性能优化</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/hidden/"><i class="fa-fw fas fa-lock"></i><span> 私密</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> 关于</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">听书项目 Day 10｜排行榜与详情性能优化</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-09T10:04:59.000Z" title="发表于 2026-09-09 18:04:59">2026-09-09</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-19T03:43:02.636Z" title="更新于 2026-09-19 11:43:02">2026-09-19</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%BC%80%E5%8F%91/">开发</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%BC%80%E5%8F%91/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE/">听书项目</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">3.4k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>13分钟</span></span><span class="post-meta-separator">|</span><span id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="twikoo_visitors"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>梳理 Redis 在登录、统计、排行榜和幂等中的使用，并记录专辑排行榜与详情页并发优化思路。</p>
+</blockquote>
+<h2 id="本篇要点"><a href="#本篇要点" class="headerlink" title="本篇要点"></a>本篇要点</h2><ul>
+<li>盘点 Redis 在项目中的用途</li>
+<li>实现专辑排行榜相关接口</li>
+<li>分析详情页的并发与缓存问题</li>
+</ul>
+<span id="more"></span>
+
+<h2 id="内容回顾"><a href="#内容回顾" class="headerlink" title="内容回顾"></a>内容回顾</h2><h3 id="1、根据专辑id查询声音列表"><a href="#1、根据专辑id查询声音列表" class="headerlink" title="1、根据专辑id查询声音列表"></a>1、根据专辑id查询声音列表</h3><p>1、根据专辑id获取专辑下面所有声音列表，但是声音包含免费和收费的</p>
+<p>2、判断用户是否登录状态，如果用户没有登录：</p>
+<p>– 判断如果专辑不是免费的，去掉试看的集数，其他是收费的</p>
+<p>3、如果用户当前是登录状态：根据专辑类型判断</p>
+<p>– 如果vip免费专辑：判断当前登录用户是否是vip用户，如果不是vip收费，如果是vip但是vip过期了也是收费</p>
+<p>– 如果付费专辑：需要收费，但是查询当前用户是否购买专辑或者声音</p>
+<p>— 如果用户购买过专辑，专辑里面声音可以免费看</p>
+<p>— 如果用户购买过专辑里面某些声音，购买的声音可以免费看</p>
+<h3 id="2、添加（修改）声音播放进度"><a href="#2、添加（修改）声音播放进度" class="headerlink" title="2、添加（修改）声音播放进度"></a>2、添加（修改）声音播放进度</h3><ul>
+<li><p><strong>更新声音播放量– 同一个用户对于同一个声音在24小时计算一次播放量</strong></p>
+<p><strong>使用redis里面bitmap类型实现</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">redis bitmap类型  key：userId   偏移量：声音id   value：1</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>RabbitMQ幂等性保证– 相同消息发送多次只会消费一次</strong></p>
+</li>
+</ul>
+<p>​		<strong>使用redis里面setnx实现（锁）</strong></p>
+<h3 id="3、获取声音播放进度"><a href="#3、获取声音播放进度" class="headerlink" title="3、获取声音播放进度"></a>3、获取声音播放进度</h3><h2 id="今天内容"><a href="#今天内容" class="headerlink" title="今天内容"></a>今天内容</h2><h2 id="0、Redis项目中应用场景"><a href="#0、Redis项目中应用场景" class="headerlink" title="0、Redis项目中应用场景"></a>0、Redis项目中应用场景</h2><h3 id="第一个：登录存储用户信息"><a href="#第一个：登录存储用户信息" class="headerlink" title="第一个：登录存储用户信息"></a>第一个：登录存储用户信息</h3><ul>
+<li>登录时候，生成token，把用户信息数据存储到redis里面，redis的key是token，value是用户信息。每次登录时候，请求头传递token，获取token查询redis，如果可以查询到登录状态</li>
+</ul>
+<h3 id="第二个：更新声音播放量"><a href="#第二个：更新声音播放量" class="headerlink" title="第二个：更新声音播放量"></a>第二个：更新声音播放量</h3><ul>
+<li>同一个用于对于同一个声音，在24小时计算一次播放量</li>
+<li>使用redis里面bitmaps类型实现功能</li>
+<li>bitmaps的key是用户id，offset是声音id，value是值</li>
+</ul>
+<h3 id="第三个：更新排行榜"><a href="#第三个：更新排行榜" class="headerlink" title="第三个：更新排行榜"></a>第三个：更新排行榜</h3><ul>
+<li>使用redis的hash类型存储自己排行榜数据</li>
+<li>hash类型key是一级分类id，field是排序字段，value是专辑数据</li>
+</ul>
+<h3 id="第四个：MQ保证消息幂等性"><a href="#第四个：MQ保证消息幂等性" class="headerlink" title="第四个：MQ保证消息幂等性"></a>第四个：MQ保证消息幂等性</h3><ul>
+<li>使用redis里面setnx（锁）机制解决</li>
+<li>相同消息发送多次，只消费一次</li>
+</ul>
+<h3 id="第五个：分布式锁"><a href="#第五个：分布式锁" class="headerlink" title="第五个：分布式锁"></a>第五个：分布式锁</h3><ul>
+<li>使用Redis实现：setnx + 过期时间 + uuid + lua脚本</li>
+</ul>
+<h2 id="1、专辑排行榜功能"><a href="#1、专辑排行榜功能" class="headerlink" title="1、专辑排行榜功能"></a>1、专辑排行榜功能</h2><h3 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h3><ul>
+<li>查看每个一级分类里面按照不同方式排序出来专辑数据</li>
+</ul>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/354edc1ac669dff576ecf22db984a0b2ea164f55bdc22e376198a9df02dfd2ad.png" alt="image-20251101091900745"></p>
+<ul>
+<li>查询mysql获取所有一级分类数据</li>
+<li>查询es，根据一级分类id查询一级分类下面所有专辑，根据不同方式排序，获取前10条数据</li>
+</ul>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">GET</span> <span class="operator">/</span>albuminfo<span class="operator">/</span>_search</span><br><span class="line">&#123;</span><br><span class="line">  &quot;query&quot;: &#123;</span><br><span class="line">    &quot;term&quot;: &#123;</span><br><span class="line">      &quot;category1Id&quot;: &#123;</span><br><span class="line">        &quot;value&quot;: &quot;1&quot;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  ,&quot;sort&quot;: [</span><br><span class="line">    &#123;</span><br><span class="line">      &quot;playStatNum&quot;: &#123;</span><br><span class="line">        &quot;order&quot;: &quot;desc&quot;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  ],</span><br><span class="line">  &quot;size&quot;: <span class="number">10</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/390b79e91e9c0a850d739b8723d5da835d572b07f2b69868afe50b9cfa57bfae.png" alt="image-20251101092703451"></p>
+<ul>
+<li><p>定时任务后面实现</p>
+</li>
+<li><p><strong>目前实现：编写获取排行榜数据接口</strong></p>
+<p><strong>查询mysql获取一级分类数据</strong></p>
+<p><strong>查询es得到专辑排行榜数据</strong></p>
+<p><strong>把专辑排行榜数据存储到redis里面</strong></p>
+</li>
+<li><p><strong>使用redis里面哪个类型放数据？</strong></p>
+</li>
+</ul>
+<p><strong>– 使用redis里面hash类型存储排行榜数据</strong></p>
+<p><strong>key：一级分类</strong></p>
+<p><strong>field：排序字段</strong></p>
+<p><strong>value：专辑排序数据</strong></p>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/e03ea1a2976d183a1dcc40658abb5ff2308ee3cdc33f2fa6d497e88669f7bd0f.png" alt="image-20251101093526173"></p>
+<h3 id="添加排行榜数据接口"><a href="#添加排行榜数据接口" class="headerlink" title="添加排行榜数据接口"></a>添加排行榜数据接口</h3><ul>
+<li>在service-search模块的SearchApiController 中</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 更新排行榜</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@return</span></span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="meta">@SneakyThrows</span></span><br><span class="line"><span class="meta">@Operation(summary = &quot;更新排行榜&quot;)</span></span><br><span class="line"><span class="meta">@GetMapping(&quot;updateLatelyAlbumRanking&quot;)</span></span><br><span class="line"><span class="keyword">public</span> Result <span class="title function_">updateLatelyAlbumRanking</span><span class="params">()</span> &#123;</span><br><span class="line">    <span class="comment">//  调用服务层方法</span></span><br><span class="line">    searchService.updateLatelyAlbumRanking();</span><br><span class="line">    <span class="comment">//  默认返回</span></span><br><span class="line">    <span class="keyword">return</span> Result.ok();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Autowired</span></span><br><span class="line"><span class="keyword">private</span> RedisTemplate redisTemplate;</span><br><span class="line"><span class="comment">//更新排行榜</span></span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">updateLatelyAlbumRanking</span><span class="params">()</span> <span class="keyword">throws</span> Exception &#123;</span><br><span class="line">    <span class="comment">//1 远程调用：获取所有一级分类</span></span><br><span class="line">    Result&lt;List&lt;BaseCategory1&gt;&gt; result = categoryFeignClient.findAllCategory1();</span><br><span class="line">    List&lt;BaseCategory1&gt; category1List = result.getData();</span><br><span class="line">    Assert.notNull(category1List,<span class="string">&quot;一级分类集合为空&quot;</span>);</span><br><span class="line"></span><br><span class="line">    <span class="comment">//2 把所有一级分类list遍历，得到每个一级分类</span></span><br><span class="line">    <span class="keyword">for</span> (BaseCategory1 category1 : category1List) &#123;</span><br><span class="line">        <span class="comment">//获取一级分类id</span></span><br><span class="line">        <span class="type">Long</span> <span class="variable">category1Id</span> <span class="operator">=</span> category1.getId();</span><br><span class="line"></span><br><span class="line">        <span class="comment">//创建数组，定义好排序字段</span></span><br><span class="line">        String[] rankingDimensionArray =</span><br><span class="line">                <span class="keyword">new</span> <span class="title class_">String</span>[]&#123;<span class="string">&quot;hotScore&quot;</span>, <span class="string">&quot;playStatNum&quot;</span>,</span><br><span class="line">                <span class="string">&quot;subscribeStatNum&quot;</span>, <span class="string">&quot;buyStatNum&quot;</span>, <span class="string">&quot;commentStatNum&quot;</span>&#125;;</span><br><span class="line">        <span class="comment">//把数组遍历，得到每个排序字段</span></span><br><span class="line">        <span class="comment">//3 dsl语句，根据一级分类id + 排序字段查询排行榜数据</span></span><br><span class="line">        <span class="keyword">for</span> (String ranging : rankingDimensionArray) &#123;</span><br><span class="line">            <span class="comment">//dsl语句</span></span><br><span class="line">            SearchRequest.<span class="type">Builder</span> <span class="variable">builder</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">SearchRequest</span>.Builder();</span><br><span class="line">            builder.index(<span class="string">&quot;albuminfo&quot;</span>).query(</span><br><span class="line">                    q-&gt;q.term(f-&gt;f.field(<span class="string">&quot;category1Id&quot;</span>).value(category1Id)))</span><br><span class="line">                    .sort(s-&gt;s.field(o-&gt;o.field(ranging).order(SortOrder.Desc)))</span><br><span class="line">                    .size(<span class="number">10</span>);</span><br><span class="line"></span><br><span class="line">            <span class="comment">//调用得到结果</span></span><br><span class="line">            SearchResponse&lt;AlbumInfoIndex&gt; response =</span><br><span class="line">                    elasticsearchClient.search(builder.build(),AlbumInfoIndex.class);</span><br><span class="line"></span><br><span class="line">            <span class="comment">//response获取结果</span></span><br><span class="line">            List&lt;AlbumInfoIndex&gt; albumInfoIndexList = response.hits().hits().stream().map(Hit::source).collect(Collectors.toList());</span><br><span class="line">            <span class="comment">//放到redis里面 hash类型</span></span><br><span class="line">            <span class="comment">// hash类型 key：一级分类id    field：排序字段   value：专辑数据</span></span><br><span class="line">            <span class="comment">//4 把查询专辑排行榜数据放到redis的hash类型里面</span></span><br><span class="line">            <span class="type">String</span> <span class="variable">rangKey</span> <span class="operator">=</span> <span class="string">&quot;ranking:&quot;</span>+category1Id;</span><br><span class="line">            <span class="comment">//redisTemplate.boundHashOps(category1).put(ranging,albumInfoIndexList);</span></span><br><span class="line">            redisTemplate.opsForHash().put(rangKey,ranging,albumInfoIndexList);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>远程调用接口：查询所有一级分类</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 查询所有的一级分类数据</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@return</span></span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="meta">@Operation(summary = &quot;查询所有的一级分类信息&quot;)</span></span><br><span class="line"><span class="meta">@GetMapping(&quot;findAllCategory1&quot;)</span></span><br><span class="line"><span class="keyword">public</span> Result&lt;List&lt;BaseCategory1&gt;&gt; <span class="title function_">findAllCategory1</span><span class="params">()</span> &#123;</span><br><span class="line">    <span class="comment">// 获取所有的一级分类数据</span></span><br><span class="line">    List&lt;BaseCategory1&gt; baseCategory1List = baseCategoryService.findAllCategory1();</span><br><span class="line">    <span class="keyword">return</span> Result.ok(baseCategory1List);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="查询排行榜数据接口"><a href="#查询排行榜数据接口" class="headerlink" title="查询排行榜数据接口"></a>查询排行榜数据接口</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 获取排行榜列表</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@param</span> category1Id</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@param</span> dimension</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@return</span></span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="meta">@Operation(summary = &quot;获取排行榜列表&quot;)</span></span><br><span class="line"><span class="meta">@GetMapping(&quot;findRankingList/&#123;category1Id&#125;/&#123;dimension&#125;&quot;)</span></span><br><span class="line"><span class="keyword">public</span> Result&lt;List&lt;AlbumInfoIndexVo&gt;&gt;</span><br><span class="line">             <span class="title function_">findRankingList</span><span class="params">(<span class="meta">@PathVariable</span> Long category1Id,</span></span><br><span class="line"><span class="params">                             <span class="meta">@PathVariable</span> String dimension)</span> &#123;</span><br><span class="line">    <span class="comment">//  调用服务层方法</span></span><br><span class="line">    List&lt;AlbumInfoIndexVo&gt; infoIndexVoList = searchService.findRankingList(category1Id, dimension);</span><br><span class="line">    <span class="comment">//  返回结果集</span></span><br><span class="line">    <span class="keyword">return</span> Result.ok(infoIndexVoList);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//查询排行榜数据</span></span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="keyword">public</span> List&lt;AlbumInfoIndexVo&gt; <span class="title function_">findRankingList</span><span class="params">(Long category1Id, String dimension)</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> (List&lt;AlbumInfoIndexVo&gt;)redisTemplate</span><br><span class="line">            .boundHashOps(<span class="string">&quot;ranking:&quot;</span>+category1Id)</span><br><span class="line">            .get(dimension);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="2、详情优化（背）"><a href="#2、详情优化（背）" class="headerlink" title="2、详情优化（背）"></a>2、详情优化（背）</h2><h3 id="2-1-缓存实现过程"><a href="#2-1-缓存实现过程" class="headerlink" title="2.1 缓存实现过程"></a>2.1 缓存实现过程</h3><h4 id="数据库优化方式"><a href="#数据库优化方式" class="headerlink" title="数据库优化方式"></a>数据库优化方式</h4><ul>
+<li>如果专辑有大量用户进行访问，造成mysql压力过大（io瓶颈），对数据库进行优化</li>
+<li>一般对系统进行优化，首先考虑的数据库优化</li>
+<li><strong>数据库优化有几种方式：</strong></li>
+</ul>
+<p><strong>第一种 创建索引（什么情况创建索引）</strong></p>
+<p><strong>第二种 SQL语句优化（单表和多表优化）</strong></p>
+<p><strong>第三种 分库分表（单表500w行或者单表容量2GB）</strong></p>
+<p><strong>第四种 添加数据缓存（不经常变化数据）</strong></p>
+<h4 id="缓存过程"><a href="#缓存过程" class="headerlink" title="缓存过程"></a>缓存过程</h4><p><img src="https://cdn.gcblog.fun/tingshu-notes/8dca64069614185c49a9628c6f93d380efefc86dd93b733c68e6f479a1a0a2dd.png" alt="image-20251101111629204"></p>
+<h3 id="2-2-缓存常见问题（★）"><a href="#2-2-缓存常见问题（★）" class="headerlink" title="2.2 缓存常见问题（★）"></a>2.2 缓存常见问题（★）</h3><h4 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h4><ul>
+<li><strong>添加缓存之后，产生以下几个问题</strong></li>
+<li><strong>产生四个问题</strong></li>
+</ul>
+<p>第一个问题：缓存穿透</p>
+<p>第二个问题：缓存雪崩</p>
+<p>第三个问题：缓存击穿</p>
+<p>第四个问题：数据一致性</p>
+<h4 id="1-缓存穿透问题"><a href="#1-缓存穿透问题" class="headerlink" title="1 缓存穿透问题"></a>1 缓存穿透问题</h4><h5 id="问题描述"><a href="#问题描述" class="headerlink" title="问题描述"></a>问题描述</h5><ul>
+<li><strong>是指查询一个不存在的数据，缓存中没有，mysql数据库也没有</strong></li>
+<li>在流量大时，可能mysql数据库就宕机了，缓存没有起到任何作用</li>
+</ul>
+<h5 id="解决方案"><a href="#解决方案" class="headerlink" title="解决方案"></a>解决方案</h5><p>**方案一：**空结果也进行缓存（null值进行缓存），但是不能防止随机穿透</p>
+<p>**方案二：**使用布隆过滤器来解决随机穿透问题（后面讲）</p>
+<h4 id="2-缓存雪崩问题"><a href="#2-缓存雪崩问题" class="headerlink" title="2 缓存雪崩问题"></a>2 缓存雪崩问题</h4><h5 id="问题描述-1"><a href="#问题描述-1" class="headerlink" title="问题描述"></a>问题描述</h5><ul>
+<li><strong>是指把多个缓存设置了相同的过期时间，导致缓存在某一时刻同时失效</strong>，缓存刚失效恰巧有大量请求，压力都在mysql数据库，可能mysql数据库就宕机了</li>
+</ul>
+<h5 id="解决方案-1"><a href="#解决方案-1" class="headerlink" title="解决方案"></a>解决方案</h5><ul>
+<li><strong>让多个缓存设置随机过期时间（不同过期时间）</strong></li>
+</ul>
+<h4 id="3-缓存击穿问题"><a href="#3-缓存击穿问题" class="headerlink" title="3 缓存击穿问题"></a>3 缓存击穿问题</h4><h5 id="问题描述-2"><a href="#问题描述-2" class="headerlink" title="问题描述"></a>问题描述</h5><ul>
+<li>热点数据缓存过期了，还有大量请求过来，压力都会到mysql数据库，可能mysql数据库就宕机了</li>
+</ul>
+<h5 id="解决方案-2"><a href="#解决方案-2" class="headerlink" title="解决方案"></a>解决方案</h5><ul>
+<li><strong>使用分布式锁解决</strong></li>
+</ul>
+<h4 id="4-数据一致性问题"><a href="#4-数据一致性问题" class="headerlink" title="4 数据一致性问题"></a>4 数据一致性问题</h4><h5 id="问题描述-3"><a href="#问题描述-3" class="headerlink" title="问题描述"></a>问题描述</h5><ul>
+<li>mysql里面数据发生变化，应该同步到redis缓存里面，但是mysql数据变化了，还没有来得及同步到redis，有请求查询redis，造成mysql和redis数据不一致</li>
+</ul>
+<h5 id="解决方案-3"><a href="#解决方案-3" class="headerlink" title="解决方案"></a>解决方案</h5><ul>
+<li>延迟双删策略</li>
+<li>数据同步工具canal</li>
+</ul>
+<h3 id="2-3-本地锁"><a href="#2-3-本地锁" class="headerlink" title="2.3 本地锁"></a>2.3 本地锁</h3><h4 id="概述-1"><a href="#概述-1" class="headerlink" title="概述"></a>概述</h4><ul>
+<li><strong>之前学习过，使用synchronized 及lock可以实现锁操作，这些锁都是本地锁</strong></li>
+<li><strong>本地锁作用范围有局限性</strong>，只是作用于某一个jvm或者某一个微服务模块，如果跨jvm或者跨微服务模块不起作用了</li>
+</ul>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/8ea8b9c637dfb4297e34527f406f2ba2ac379af7d219640caa12ae0d47d8f090.png" alt="image-20251101144632452"></p>
+<h4 id="演示本地锁局限性"><a href="#演示本地锁局限性" class="headerlink" title="演示本地锁局限性"></a>演示本地锁局限性</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@RestController</span></span><br><span class="line"><span class="meta">@RequestMapping(&quot;api/album/test&quot;)</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">TestController</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">//  注入服务层方法</span></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> TestService testService;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 测试分布式锁</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span></span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="meta">@GetMapping(&quot;testLock&quot;)</span></span><br><span class="line">    <span class="keyword">public</span> Result <span class="title function_">testLock</span><span class="params">()</span>&#123;</span><br><span class="line">        testService.testLock1();</span><br><span class="line">        <span class="keyword">return</span> Result.ok();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Service</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">TestServiceImpl</span> <span class="keyword">implements</span>  <span class="title class_">TestService</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> StringRedisTemplate stringRedisTemplate;</span><br><span class="line"></span><br><span class="line">    <span class="comment">//1 测试本地锁</span></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">synchronized</span> <span class="keyword">void</span> <span class="title function_">testLock1</span><span class="params">()</span> &#123;</span><br><span class="line">        <span class="comment">//1 从redis获取数据</span></span><br><span class="line">        <span class="comment">//提前在redis手动添加初始值  set num  1</span></span><br><span class="line">        <span class="type">String</span> <span class="variable">value</span> <span class="operator">=</span> stringRedisTemplate.opsForValue().get(<span class="string">&quot;num&quot;</span>);</span><br><span class="line"></span><br><span class="line">        <span class="comment">//2 判断非空</span></span><br><span class="line">        <span class="keyword">if</span>(StringUtils.isEmpty(value)) &#123;</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">//3 把redis获取数据+1</span></span><br><span class="line">        <span class="comment">//4 +1之后放回到redis里面</span></span><br><span class="line">        <span class="type">int</span> <span class="variable">num</span> <span class="operator">=</span> Integer.parseInt(value);</span><br><span class="line">        stringRedisTemplate.opsForValue().set(<span class="string">&quot;num&quot;</span>, String.valueOf(++num));</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="测试"><a href="#测试" class="headerlink" title="测试"></a>测试</h4><ul>
+<li><strong>把模块部署集群效果，使用idea工具部署</strong></li>
+</ul>
+<p><strong>– 到nacos配置文件注释端口号配置</strong></p>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/e2a17640f8a4100a7743ff47a818e79cf7d5d6e7755e325e69aaa8994ef6d9cc.png" alt="image-20251101151622909"></p>
+<p><strong>– 在idea操作集群部署</strong></p>
+<p>使用三个服务集群部署</p>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/fd6def62adb49ae38025704cdb9ac521e01b90d34e885e61c9de4d9fb6bf6fb9.png" alt="image-20251101151752036"></p>
+<p><strong>– 启动网关模块，三个专辑微服务模块</strong></p>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/7e595556c77eed3da5f98faa9bd8cdf80044a1defb45f6ca60b5627c5a162674.png" alt="image-20251101151948715"></p>
+<ul>
+<li><strong>模拟100个请求，使用测试工具apache-jmeter</strong></li>
+</ul>
+<p>– 启动jmeter</p>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/2c7eaae4c173cf32cf26405e189bca8e36d63840529378e59b5a5266b6a2a164.png" alt="image-20251101152152815"></p>
+<p><img src="https://cdn.gcblog.fun/tingshu-notes/dd4366a5fba28d8cca288988f0ba18a81b81891da04c6af17b5d96900a196170.png" alt="image-20251101152545091"></p>
+<h3 id="2-4-分布式锁（Redis实现）"><a href="#2-4-分布式锁（Redis实现）" class="headerlink" title="2.4 分布式锁（Redis实现）"></a>2.4 分布式锁（Redis实现）</h3><ul>
+<li>为了解决跨JVM加锁，使用分布式锁</li>
+<li>分布式锁实现有很多种方案，<strong>使用Redis实现分布式锁，这种方式性能最高</strong></li>
+</ul>
+<h4 id="Redis的setnx实现分布式锁"><a href="#Redis的setnx实现分布式锁" class="headerlink" title="Redis的setnx实现分布式锁"></a>Redis的setnx实现分布式锁</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//setnx实现分布式锁</span></span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">testLock2</span><span class="params">()</span> <span class="keyword">throws</span> Exception&#123;</span><br><span class="line">    <span class="comment">//获取当前锁</span></span><br><span class="line">    <span class="type">Boolean</span> <span class="variable">ifAbsent</span> <span class="operator">=</span></span><br><span class="line">            stringRedisTemplate.opsForValue().setIfAbsent(<span class="string">&quot;lock&quot;</span>, <span class="string">&quot;lock&quot;</span>);</span><br><span class="line">    <span class="keyword">if</span>(ifAbsent) &#123; <span class="comment">//获取锁成功</span></span><br><span class="line">        <span class="comment">//1 从redis获取数据</span></span><br><span class="line">        <span class="comment">//提前在redis手动添加初始值  set num  1</span></span><br><span class="line">        <span class="type">String</span> <span class="variable">value</span> <span class="operator">=</span> stringRedisTemplate.opsForValue().get(<span class="string">&quot;num&quot;</span>);</span><br><span class="line">        <span class="comment">//2 判断非空</span></span><br><span class="line">        <span class="keyword">if</span>(StringUtils.isEmpty(value)) &#123;</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">//3 把redis获取数据+1</span></span><br><span class="line">        <span class="comment">//4 +1之后放回到redis里面</span></span><br><span class="line">        <span class="type">int</span> <span class="variable">num</span> <span class="operator">=</span> Integer.parseInt(value);</span><br><span class="line">        stringRedisTemplate.opsForValue().set(<span class="string">&quot;num&quot;</span>, String.valueOf(++num));</span><br><span class="line"></span><br><span class="line">        <span class="comment">//释放锁</span></span><br><span class="line">        stringRedisTemplate.delete(<span class="string">&quot;lock&quot;</span>);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123; <span class="comment">//获取锁失败</span></span><br><span class="line">        Thread.sleep(<span class="number">100</span>);</span><br><span class="line">        <span class="comment">//自旋</span></span><br><span class="line">        <span class="built_in">this</span>.testLock2();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="锁无法释放问题"><a href="#锁无法释放问题" class="headerlink" title="锁无法释放问题"></a>锁无法释放问题</h4><ul>
+<li><strong>上面代码中，如果操作时候完成时候出现异常，造成锁无法释放</strong></li>
+<li><strong>解决：</strong></li>
+</ul>
+<p><strong>第一种 把释放锁代码写到finally里面</strong></p>
+<p><strong>第二种 设置锁自动过期时间</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//setnx实现分布式锁</span></span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">testLock2</span><span class="params">()</span> <span class="keyword">throws</span> Exception&#123;</span><br><span class="line">    <span class="comment">//获取当前锁  setIfAbsent == senx命令</span></span><br><span class="line">    <span class="comment">//设置过期时间</span></span><br><span class="line">    <span class="type">Boolean</span> <span class="variable">ifAbsent</span> <span class="operator">=</span></span><br><span class="line">            stringRedisTemplate.opsForValue()</span><br><span class="line">                    .setIfAbsent(<span class="string">&quot;lock&quot;</span>,<span class="string">&quot;lock&quot;</span>,</span><br><span class="line">                            <span class="number">10</span>, TimeUnit.SECONDS);</span><br><span class="line">    <span class="keyword">if</span>(ifAbsent) &#123; <span class="comment">//获取锁成功</span></span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            <span class="comment">//1 从redis获取数据</span></span><br><span class="line">            <span class="comment">//提前在redis手动添加初始值  set num  1</span></span><br><span class="line">            <span class="type">String</span> <span class="variable">value</span> <span class="operator">=</span> stringRedisTemplate.opsForValue().get(<span class="string">&quot;num&quot;</span>);</span><br><span class="line">            <span class="comment">//2 判断非空</span></span><br><span class="line">            <span class="keyword">if</span>(StringUtils.isEmpty(value)) &#123;</span><br><span class="line">                <span class="keyword">return</span>;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">//3 把redis获取数据+1</span></span><br><span class="line">            <span class="comment">//4 +1之后放回到redis里面</span></span><br><span class="line">            <span class="type">int</span> <span class="variable">num</span> <span class="operator">=</span> Integer.parseInt(value);</span><br><span class="line">            stringRedisTemplate.opsForValue().set(<span class="string">&quot;num&quot;</span>, String.valueOf(++num));</span><br><span class="line"></span><br><span class="line">            <span class="comment">//异常</span></span><br><span class="line">        &#125;<span class="keyword">finally</span> &#123;</span><br><span class="line">            <span class="comment">//释放锁</span></span><br><span class="line">            stringRedisTemplate.delete(<span class="string">&quot;lock&quot;</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123; <span class="comment">//获取锁失败</span></span><br><span class="line">        Thread.sleep(<span class="number">100</span>);</span><br><span class="line">        <span class="built_in">this</span>.testLock2();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="锁误删问题"><a href="#锁误删问题" class="headerlink" title="锁误删问题"></a>锁误删问题</h4><ul>
+<li><p>前提条件：业务执行时间大于锁自动释放时间</p>
+</li>
+<li><p>谁加的锁有谁去释放，解铃还须系铃人</p>
+</li>
+<li><p>**解决：**<strong>使用UUID 防止误删锁</strong></p>
+</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//setnx实现分布式锁</span></span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">testLock2</span><span class="params">()</span> <span class="keyword">throws</span> Exception&#123;</span><br><span class="line">    <span class="comment">//获取当前锁  setIfAbsent == senx命令</span></span><br><span class="line">    <span class="type">String</span> <span class="variable">uuid</span> <span class="operator">=</span> UUID.randomUUID().toString();</span><br><span class="line">    <span class="type">Boolean</span> <span class="variable">ifAbsent</span> <span class="operator">=</span></span><br><span class="line">            stringRedisTemplate.opsForValue()</span><br><span class="line">                    .setIfAbsent(<span class="string">&quot;lock&quot;</span>,uuid,</span><br><span class="line">                            <span class="number">3</span>, TimeUnit.SECONDS);</span><br><span class="line">    <span class="keyword">if</span>(ifAbsent) &#123; <span class="comment">//获取锁成功</span></span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            <span class="comment">//1 从redis获取数据</span></span><br><span class="line">            <span class="comment">//提前在redis手动添加初始值  set num  1</span></span><br><span class="line">            <span class="type">String</span> <span class="variable">value</span> <span class="operator">=</span> stringRedisTemplate.opsForValue().get(<span class="string">&quot;num&quot;</span>);</span><br><span class="line">            <span class="comment">//2 判断非空</span></span><br><span class="line">            <span class="keyword">if</span>(StringUtils.isEmpty(value)) &#123;</span><br><span class="line">                <span class="keyword">return</span>;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">//3 把redis获取数据+1</span></span><br><span class="line">            <span class="comment">//4 +1之后放回到redis里面</span></span><br><span class="line">            <span class="type">int</span> <span class="variable">num</span> <span class="operator">=</span> Integer.parseInt(value);</span><br><span class="line">            stringRedisTemplate.opsForValue().set(<span class="string">&quot;num&quot;</span>, String.valueOf(++num));</span><br><span class="line"></span><br><span class="line">            <span class="comment">//异常</span></span><br><span class="line">        &#125;<span class="keyword">finally</span> &#123;</span><br><span class="line"></span><br><span class="line">            <span class="comment">//释放锁</span></span><br><span class="line">            <span class="comment">//当前uuid 和 redis存储uuid是否相同</span></span><br><span class="line">            <span class="type">String</span> <span class="variable">redis_uuid</span> <span class="operator">=</span> stringRedisTemplate.opsForValue().get(<span class="string">&quot;lock&quot;</span>);</span><br><span class="line">            <span class="keyword">if</span>(uuid.equals(redis_uuid)) &#123;</span><br><span class="line">                stringRedisTemplate.delete(<span class="string">&quot;lock&quot;</span>);</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">        &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123; <span class="comment">//获取锁失败</span></span><br><span class="line">        Thread.sleep(<span class="number">100</span>);</span><br><span class="line">        <span class="built_in">this</span>.testLock2();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="原子性问题"><a href="#原子性问题" class="headerlink" title="原子性问题"></a>原子性问题</h4><ul>
+<li><p><strong>保证释放锁过程具备原子性</strong></p>
+</li>
+<li><p><strong>解决方案：</strong></p>
+</li>
+</ul>
+<p><strong>– 使用Redis调用lua脚本保证释放锁原子性</strong></p>
+<p>– 基于Redis单线程特性</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//setnx + 过期时间 + uuid + lua脚本</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">testLock3</span><span class="params">()</span> <span class="keyword">throws</span> Exception&#123;</span><br><span class="line">    <span class="comment">//获取当前锁  setIfAbsent == senx命令</span></span><br><span class="line">    <span class="type">String</span> <span class="variable">uuid</span> <span class="operator">=</span> UUID.randomUUID().toString();</span><br><span class="line">    <span class="type">Boolean</span> <span class="variable">ifAbsent</span> <span class="operator">=</span></span><br><span class="line">            stringRedisTemplate.opsForValue()</span><br><span class="line">                    .setIfAbsent(<span class="string">&quot;lock&quot;</span>,uuid,</span><br><span class="line">                            <span class="number">3</span>, TimeUnit.SECONDS);</span><br><span class="line">    <span class="keyword">if</span>(ifAbsent) &#123; <span class="comment">//获取锁成功</span></span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            <span class="comment">//1 从redis获取数据</span></span><br><span class="line">            <span class="comment">//提前在redis手动添加初始值  set num  1</span></span><br><span class="line">            <span class="type">String</span> <span class="variable">value</span> <span class="operator">=</span> stringRedisTemplate.opsForValue().get(<span class="string">&quot;num&quot;</span>);</span><br><span class="line">            <span class="comment">//2 判断非空</span></span><br><span class="line">            <span class="keyword">if</span>(StringUtils.isEmpty(value)) &#123;</span><br><span class="line">                <span class="keyword">return</span>;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">//3 把redis获取数据+1</span></span><br><span class="line">            <span class="comment">//4 +1之后放回到redis里面</span></span><br><span class="line">            <span class="type">int</span> <span class="variable">num</span> <span class="operator">=</span> Integer.parseInt(value);</span><br><span class="line">            stringRedisTemplate.opsForValue().set(<span class="string">&quot;num&quot;</span>, String.valueOf(++num));</span><br><span class="line"></span><br><span class="line">            <span class="comment">//异常</span></span><br><span class="line">        &#125;<span class="keyword">finally</span> &#123;</span><br><span class="line"></span><br><span class="line">            <span class="comment">//lua脚本释放锁</span></span><br><span class="line">            <span class="comment">//创建对象</span></span><br><span class="line">            DefaultRedisScript&lt;Long&gt; redisScript = <span class="keyword">new</span> <span class="title class_">DefaultRedisScript</span>&lt;&gt;();</span><br><span class="line">            <span class="comment">//编写lua脚本</span></span><br><span class="line">            <span class="type">String</span> <span class="variable">script</span> <span class="operator">=</span> <span class="string">&quot;if redis.call(\&quot;get\&quot;,KEYS[1]) == ARGV[1]\n&quot;</span> +</span><br><span class="line">                    <span class="string">&quot;then\n&quot;</span> +</span><br><span class="line">                    <span class="string">&quot;    return redis.call(\&quot;del\&quot;,KEYS[1])\n&quot;</span> +</span><br><span class="line">                    <span class="string">&quot;else\n&quot;</span> +</span><br><span class="line">                    <span class="string">&quot;    return 0\n&quot;</span> +</span><br><span class="line">                    <span class="string">&quot;end&quot;</span>;</span><br><span class="line">            <span class="comment">//设置对象里面</span></span><br><span class="line">            redisScript.setScriptText(script);</span><br><span class="line">            <span class="comment">//设置返回类型</span></span><br><span class="line">            redisScript.setResultType(Long.class);</span><br><span class="line">            <span class="comment">//执行lua脚本</span></span><br><span class="line">            stringRedisTemplate.execute(redisScript, Arrays.asList(<span class="string">&quot;lock&quot;</span>),uuid);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123; <span class="comment">//获取锁失败</span></span><br><span class="line">        Thread.sleep(<span class="number">100</span>);</span><br><span class="line">        <span class="built_in">this</span>.testLock2();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="总结："><a href="#总结：" class="headerlink" title="总结："></a>总结：</h4><p><strong>1 分布式锁如何实现的？</strong></p>
+<ul>
+<li>使用Redis实现</li>
+<li>setnx + 过期时间 + uuid + lua脚本</li>
+</ul>
+<p><strong>2 分布式锁实现同时满足以下四个条件</strong></p>
+<ul>
+<li>**互斥性。**在任意时刻，只有一个客户端能持有锁。</li>
+<li>**不会发生死锁。**即使有一个客户端在持有锁的期间崩溃而没有主动解锁，也能保证后续其他客户端能加锁。</li>
+<li>**解铃还须系铃人。**加锁和解锁必须是同一个客户端，客户端自己不能把别人加的锁给解了。</li>
+<li>加锁和解锁必须具有<strong>原子性</strong>。</li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://space.bilibili.com/1750548973">𝐺ℎ𝑎𝑜</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://gcblog.fun/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day10/">https://gcblog.fun/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day10/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://gcblog.fun" target="_blank">𝐺ℎ𝑎𝑜 の 𝐵𝑙𝑜𝑔</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Redis/">Redis</a><a class="post-meta__tags" href="/tags/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE/">听书项目</a><a class="post-meta__tags" href="/tags/%E6%8E%92%E8%A1%8C%E6%A6%9C/">排行榜</a><a class="post-meta__tags" href="/tags/%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/">性能优化</a></div><div class="post-share"><div class="social-share" data-image="/img/touxiang.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day11/" title="听书项目 Day 11｜缓存、Redisson 与布隆过滤器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">听书项目 Day 11｜缓存、Redisson 与布隆过滤器</div></div><div class="info-2"><div class="info-item-1"> 记录专辑详情缓存、Redisson 分布式锁、自定义缓存注解、布隆过滤器和 MySQL&#x2F;Redis 一致性问题。  本篇要点 给专辑详情增加缓存 用 Redisson 控制热点回源 区分穿透、击穿和缓存一致性   **学习提示：**Redisson 在这里解决并发锁问题，不是分布式事务；布隆过滤器主要用于拦截不存在的键。    内容回顾1、缓存问题 穿透 雪崩 击穿 数据一致性  2、分布式锁 使用分布式锁解决缓存击穿问题  使用Redis实现分布式锁  使用Redis里面 setnx + 过期时间 + uuid + lua脚本   3、分布式锁四个条件 互斥性。 不会发生死锁。 解铃还须系铃人。 加锁和解锁必须具有原子性。  今天内容1、专辑详情添加缓存 缓存添加 + 解决缓存击穿（分布式锁） setnx + 过期时间 + uuid + lua脚本实现  在专辑详情service方法里面添加 1234567891011121314151617181920212223242526272829303132333435363738394041424344454647484...</div></div></div></a><a class="pagination-related" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day09/" title="听书项目 Day 09｜声音列表、详情与播放进度"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">听书项目 Day 09｜声音列表、详情与播放进度</div></div><div class="info-2"><div class="info-item-1"> 记录专辑声音列表、声音详情与播放进度处理，梳理跨服务调用和用户身份传递的问题。  本篇要点 查询专辑下的声音列表 分析声音详情数据来源 记录播放进度与远程调用边界    内容回顾1、根据一级分类Id获取全部分类2、关键字自动补全功能 completion ：数据加载到内存中，通过前缀匹配 自动补全接口  3、logstashELK  使用logstash收集项目日志信息 把收集到日志信息存储到es里面 使用kibana分析es日志信息  4、专辑详情 基础功能  根据专辑id查询声音列表分析   今天内容1、根据专辑id查询声音列表（复杂）流程：1、根据专辑id获取专辑下面所有声音列表，但是声音包含免费和收费的 2、判断用户是否登录状态，如果用户没有登录： – 判断如果专辑不是免费的，去掉试看的集数，其他是收费的 3、如果用户当前是登录状态：根据专辑类型判断 – 如果vip免费专辑：判断当前登录用户是否是vip用户，如果不是vip收费，如果是vip但是vip过期了也是收费 – 如果付费专辑：需要收费，但是查询当前用户是否购买专辑或者声音 — 如果用户购买过专辑，专辑里面声音可以...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day04/" title="听书项目 Day 04｜微信登录与登录校验"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-09</div><div class="info-item-2">听书项目 Day 04｜微信登录与登录校验</div></div><div class="info-2"><div class="info-item-1"> 梳理微信小程序登录、OpenID 查询、Redis 保存登录态，以及自定义注解和 AOP 校验登录的流程。  本篇要点 从 code 获取用户身份 用 Redis 保存登录状态 通过注解与切面统一校验登录    内容回顾核心模块 登录 专辑详情 订单 搜索  声音管理模块 保存声音 声音列表 删除声音 修改声音  今天内容前置知识 自定义注解 AOP Redis  1、用户登录流程（背）   **httpClient：**请求微信接口服务器使用httpClient **RabbitMQ：**第一次登录，使用RabbitMQ异步初始化账户余额 **Redis：**通过Redis存储token数据，Redis的key是token，value是用户信息，设置过期时间 **Cookie（localStorage）：**因为cookie默认不能跨域传递的，每次发送请求时候，把cookie值放到请求头里面进行传递 自定义注解 AOP  2、实现校验登录流程 每次请求接口都需要首先做登录判断 1、从请求头获取token（前端传递过来的） 2、根据token查询redis（redis的key是...</div></div></div></a><a class="pagination-related" href="/2026/07/19/%E5%90%8E%E5%8F%B0%E7%99%BB%E5%BD%95%E9%AA%8C%E8%AF%81%E7%A0%81%E7%AE%A1%E7%90%86/" title="后台登录验证码管理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-19</div><div class="info-item-2">后台登录验证码管理</div></div><div class="info-2"><div class="info-item-1"> 本文保留了两段不同的学习记录：前半是后台管理的图形验证码，后半是移动端的短信验证码登录。两者面对的用户和校验方式不同，阅读时不要将后台登录接口与移动端手机号登录接口混用。  后台管理登录生成图片验证码接口1. 在common中引入EasyCaptcha依赖1234&lt;dependency&gt;    &lt;groupId&gt;com.github.whvcse&lt;/groupId&gt;    &lt;artifactId&gt;easy-captcha&lt;/artifactId&gt;&lt;/dependency&gt;  2. 在common中引入redis依赖1234&lt;dependency&gt;    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;    &lt;artifactId&gt;spring-boot-starter-data-redis&lt;/artifactId&gt;&lt;/dependency&gt;  3. 在web-admin配置文件中配置redis信息...</div></div></div></a><a class="pagination-related" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-RabbitMQ%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF/" title="听书项目专题｜RabbitMQ 可靠性与延迟消息"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-09</div><div class="info-item-2">听书项目专题｜RabbitMQ 可靠性与延迟消息</div></div><div class="info-2"><div class="info-item-1"> 整理 RabbitMQ 生产者确认、消费者确认、重试机制，以及死信队列和延迟插件两类延迟消息方案。  本篇要点 分开看生产者、Broker 和消费者确认 了解发送失败后的重试 比较死信队列与延迟插件   **学习提示：**本篇是 RabbitMQ 机制笔记；项目实际的订单超时取消方案要以对应代码为准，消息可靠性也不等于“绝不丢失、绝不重复”。    RabbitMQ使用1、消息可靠性配置1.1、介绍MQ消息的可靠性，一般需要三个方面一起保证：  生产者不丢数据 MQ服务器不丢数据 消费者不丢数据  保证消息不丢失有两种实现方式：  开启事务模式 消息确认模式（生产者，消费者）  **说明：**开启事务会大幅降低消息发送及接收效率，使用的相对较少，因此我们生产环境一般都采取消息确认模式，以下我们只是讲解消息确认模式 1.2、消息发送确认配置消息发送确认可以保证生产者不丢数据 封装发送端消息确认配置类12345678910111213141516171819202122232425262728293031323334353637383940414243@Slf4j@Componen...</div></div></div></a><a class="pagination-related" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day16/" title="听书项目 Day 16｜充值与 XXL-JOB 任务调度"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-09</div><div class="info-item-2">听书项目 Day 16｜充值与 XXL-JOB 任务调度</div></div><div class="info-2"><div class="info-item-1"> 记录充值订单、支付结果处理和 XXL-JOB 的部署与接入，并复盘订单模块涉及的异步处理。  本篇要点 梳理充值订单与支付记录 学习 XXL-JOB 调度中心和执行器 复盘订单异步处理   **学习提示：**课程中的支付、延迟方案与调度配置应按实际代码和环境验证；不要把示例配置视为生产部署结果。    内容回顾1、设计模式优化你熟悉设计模式？ 你项目中是否使用过设计模式？ 你项目做过哪些代码级别优化？ – 使用策略模式优化添加购买记录 – 使用aop + 注解方式实现专辑缓存  策略模式：使用的就是面向对象的多态机制，从而实现同一行为在不同场景下有不同实现  场景：添加购买记录 订单包含vip、声音和专辑，购买这些都需要添加购买记录，买内容不同添加记录不同 这个场景使用策略模式进行优化   – 第一步 创建接口，定义添加购买记录方法 – 第二步 根据不同购买类型比较多个实现类，创建vip、声音和专辑实现类，分别实现方法 – 第三步 创建环境类，根据不同购买类型返回不同实现类对象 2、微信支付 发起微信支付请求 查询微信支付状态  项目中，对于微信支付如何判断成功或者失败？ 1 ...</div></div></div></a><a class="pagination-related" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day09/" title="听书项目 Day 09｜声音列表、详情与播放进度"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-09</div><div class="info-item-2">听书项目 Day 09｜声音列表、详情与播放进度</div></div><div class="info-2"><div class="info-item-1"> 记录专辑声音列表、声音详情与播放进度处理，梳理跨服务调用和用户身份传递的问题。  本篇要点 查询专辑下的声音列表 分析声音详情数据来源 记录播放进度与远程调用边界    内容回顾1、根据一级分类Id获取全部分类2、关键字自动补全功能 completion ：数据加载到内存中，通过前缀匹配 自动补全接口  3、logstashELK  使用logstash收集项目日志信息 把收集到日志信息存储到es里面 使用kibana分析es日志信息  4、专辑详情 基础功能  根据专辑id查询声音列表分析   今天内容1、根据专辑id查询声音列表（复杂）流程：1、根据专辑id获取专辑下面所有声音列表，但是声音包含免费和收费的 2、判断用户是否登录状态，如果用户没有登录： – 判断如果专辑不是免费的，去掉试看的集数，其他是收费的 3、如果用户当前是登录状态：根据专辑类型判断 – 如果vip免费专辑：判断当前登录用户是否是vip用户，如果不是vip收费，如果是vip但是vip过期了也是收费 – 如果付费专辑：需要收费，但是查询当前用户是否购买专辑或者声音 — 如果用户购买过专辑，专辑里面声音可以...</div></div></div></a><a class="pagination-related" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day12/" title="听书项目 Day 12｜Canal 缓存失效与订单入口"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-09</div><div class="info-item-2">听书项目 Day 12｜Canal 缓存失效与订单入口</div></div><div class="info-2"><div class="info-item-1"> 整理 Canal 监听 MySQL Binlog 的缓存失效流程，并开始分析听书项目订单模块和结算入口。  本篇要点 理解 Binlog 与 Canal 的关系 梳理变更后的缓存失效 进入订单模块的需求分析   **学习提示：**Canal 相关示例账号已占位；这里的处理重点是识别数据变更并删除相应缓存，并非直接同步完整 Redis 对象。    内容回顾1、专辑缓存+分布式锁 使用分布式锁解决缓存击穿问题 一、使用Redis的setnx + 过期时间 + uuid + lua脚本 二、Redisson框架使用 Redisson实现分布式锁有两种机制  – 重试机制 – 看门狗机制 2、自定义注解+AOP实现缓存 切面类ProceedingJoinPoint使用  3、布隆过滤器 解决缓存穿透问题  存储0或者1数组   使用多个映射函数计算数据在数组位置  存在误判率   4、mysql和redis数据一致性 延迟双删策略：保证数据最终一致性  – 删除缓存 – 修改数据库 – 休眠一会 – 再删除缓存  数据同步canal工具  – 相当于mysql从机，监控mysql主机...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div></div><div class="comment-wrap"><div><div id="twikoo-wrap"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/touxiang.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">𝐺ℎ𝑎𝑜</div><div class="author-info-description">记录 Java 学习、Spring Boot 项目、Hexo 博客搭建和日常技术笔记的个人博客。</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">29</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">68</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/2813078120ggup-cyber"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/2813078120ggup-cyber" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:gaochao_dev@qq.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://space.bilibili.com/1750548973" target="_blank" title="Bilibili"><i class="fab fa-bilibili" style="color: #00a1d6;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客！这里是我的个人空间，分享我的学习和生活点滴。希望你能喜欢这里的内容，让我们共同进步！(≖‿≖)✧</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%9C%AC%E7%AF%87%E8%A6%81%E7%82%B9"><span class="toc-text">本篇要点</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%86%85%E5%AE%B9%E5%9B%9E%E9%A1%BE"><span class="toc-text">内容回顾</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1%E3%80%81%E6%A0%B9%E6%8D%AE%E4%B8%93%E8%BE%91id%E6%9F%A5%E8%AF%A2%E5%A3%B0%E9%9F%B3%E5%88%97%E8%A1%A8"><span class="toc-text">1、根据专辑id查询声音列表</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2%E3%80%81%E6%B7%BB%E5%8A%A0%EF%BC%88%E4%BF%AE%E6%94%B9%EF%BC%89%E5%A3%B0%E9%9F%B3%E6%92%AD%E6%94%BE%E8%BF%9B%E5%BA%A6"><span class="toc-text">2、添加（修改）声音播放进度</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3%E3%80%81%E8%8E%B7%E5%8F%96%E5%A3%B0%E9%9F%B3%E6%92%AD%E6%94%BE%E8%BF%9B%E5%BA%A6"><span class="toc-text">3、获取声音播放进度</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BB%8A%E5%A4%A9%E5%86%85%E5%AE%B9"><span class="toc-text">今天内容</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#0%E3%80%81Redis%E9%A1%B9%E7%9B%AE%E4%B8%AD%E5%BA%94%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="toc-text">0、Redis项目中应用场景</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AC%AC%E4%B8%80%E4%B8%AA%EF%BC%9A%E7%99%BB%E5%BD%95%E5%AD%98%E5%82%A8%E7%94%A8%E6%88%B7%E4%BF%A1%E6%81%AF"><span class="toc-text">第一个：登录存储用户信息</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AC%AC%E4%BA%8C%E4%B8%AA%EF%BC%9A%E6%9B%B4%E6%96%B0%E5%A3%B0%E9%9F%B3%E6%92%AD%E6%94%BE%E9%87%8F"><span class="toc-text">第二个：更新声音播放量</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AC%AC%E4%B8%89%E4%B8%AA%EF%BC%9A%E6%9B%B4%E6%96%B0%E6%8E%92%E8%A1%8C%E6%A6%9C"><span class="toc-text">第三个：更新排行榜</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AC%AC%E5%9B%9B%E4%B8%AA%EF%BC%9AMQ%E4%BF%9D%E8%AF%81%E6%B6%88%E6%81%AF%E5%B9%82%E7%AD%89%E6%80%A7"><span class="toc-text">第四个：MQ保证消息幂等性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AC%AC%E4%BA%94%E4%B8%AA%EF%BC%9A%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81"><span class="toc-text">第五个：分布式锁</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#1%E3%80%81%E4%B8%93%E8%BE%91%E6%8E%92%E8%A1%8C%E6%A6%9C%E5%8A%9F%E8%83%BD"><span class="toc-text">1、专辑排行榜功能</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%88%86%E6%9E%90"><span class="toc-text">分析</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B7%BB%E5%8A%A0%E6%8E%92%E8%A1%8C%E6%A6%9C%E6%95%B0%E6%8D%AE%E6%8E%A5%E5%8F%A3"><span class="toc-text">添加排行榜数据接口</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9F%A5%E8%AF%A2%E6%8E%92%E8%A1%8C%E6%A6%9C%E6%95%B0%E6%8D%AE%E6%8E%A5%E5%8F%A3"><span class="toc-text">查询排行榜数据接口</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2%E3%80%81%E8%AF%A6%E6%83%85%E4%BC%98%E5%8C%96%EF%BC%88%E8%83%8C%EF%BC%89"><span class="toc-text">2、详情优化（背）</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E7%BC%93%E5%AD%98%E5%AE%9E%E7%8E%B0%E8%BF%87%E7%A8%8B"><span class="toc-text">2.1 缓存实现过程</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%95%B0%E6%8D%AE%E5%BA%93%E4%BC%98%E5%8C%96%E6%96%B9%E5%BC%8F"><span class="toc-text">数据库优化方式</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%BC%93%E5%AD%98%E8%BF%87%E7%A8%8B"><span class="toc-text">缓存过程</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E7%BC%93%E5%AD%98%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98%EF%BC%88%E2%98%85%EF%BC%89"><span class="toc-text">2.2 缓存常见问题（★）</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%A6%82%E8%BF%B0"><span class="toc-text">概述</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E7%BC%93%E5%AD%98%E7%A9%BF%E9%80%8F%E9%97%AE%E9%A2%98"><span class="toc-text">1 缓存穿透问题</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#%E9%97%AE%E9%A2%98%E6%8F%8F%E8%BF%B0"><span class="toc-text">问题描述</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88"><span class="toc-text">解决方案</span></a></li></ol></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E7%BC%93%E5%AD%98%E9%9B%AA%E5%B4%A9%E9%97%AE%E9%A2%98"><span class="toc-text">2 缓存雪崩问题</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#%E9%97%AE%E9%A2%98%E6%8F%8F%E8%BF%B0-1"><span class="toc-text">问题描述</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88-1"><span class="toc-text">解决方案</span></a></li></ol></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E7%BC%93%E5%AD%98%E5%87%BB%E7%A9%BF%E9%97%AE%E9%A2%98"><span class="toc-text">3 缓存击穿问题</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#%E9%97%AE%E9%A2%98%E6%8F%8F%E8%BF%B0-2"><span class="toc-text">问题描述</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88-2"><span class="toc-text">解决方案</span></a></li></ol></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-%E6%95%B0%E6%8D%AE%E4%B8%80%E8%87%B4%E6%80%A7%E9%97%AE%E9%A2%98"><span class="toc-text">4 数据一致性问题</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#%E9%97%AE%E9%A2%98%E6%8F%8F%E8%BF%B0-3"><span class="toc-text">问题描述</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88-3"><span class="toc-text">解决方案</span></a></li></ol></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E6%9C%AC%E5%9C%B0%E9%94%81"><span class="toc-text">2.3 本地锁</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%A6%82%E8%BF%B0-1"><span class="toc-text">概述</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%BC%94%E7%A4%BA%E6%9C%AC%E5%9C%B0%E9%94%81%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-text">演示本地锁局限性</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%B5%8B%E8%AF%95"><span class="toc-text">测试</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%EF%BC%88Redis%E5%AE%9E%E7%8E%B0%EF%BC%89"><span class="toc-text">2.4 分布式锁（Redis实现）</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#Redis%E7%9A%84setnx%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81"><span class="toc-text">Redis的setnx实现分布式锁</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E9%94%81%E6%97%A0%E6%B3%95%E9%87%8A%E6%94%BE%E9%97%AE%E9%A2%98"><span class="toc-text">锁无法释放问题</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E9%94%81%E8%AF%AF%E5%88%A0%E9%97%AE%E9%A2%98"><span class="toc-text">锁误删问题</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%8E%9F%E5%AD%90%E6%80%A7%E9%97%AE%E9%A2%98"><span class="toc-text">原子性问题</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%EF%BC%9A"><span class="toc-text">总结：</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/09/17/%E7%AE%97%E6%B3%95%E5%AD%A6%E4%B9%A0%E6%97%A5%E8%AE%B0/" title="算法学习日记">算法学习日记</a><time datetime="2026-09-17T15:39:46.000Z" title="发表于 2026-09-17 23:39:46">2026-09-17</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day17/" title="听书项目 Day 17｜分布式事务与 Seata">听书项目 Day 17｜分布式事务与 Seata</a><time datetime="2026-09-09T10:05:59.000Z" title="发表于 2026-09-09 18:05:59">2026-09-09</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Seata%E6%95%B4%E5%90%88/" title="听书项目专题｜Seata 集成笔记">听书项目专题｜Seata 集成笔记</a><time datetime="2026-09-09T10:05:59.000Z" title="发表于 2026-09-09 18:05:59">2026-09-09</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day16/" title="听书项目 Day 16｜充值与 XXL-JOB 任务调度">听书项目 Day 16｜充值与 XXL-JOB 任务调度</a><time datetime="2026-09-09T10:05:48.000Z" title="发表于 2026-09-09 18:05:48">2026-09-09</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/09/09/%E5%90%AC%E4%B9%A6%E9%A1%B9%E7%9B%AE-Day15/" title="听书项目 Day 15｜支付状态、购买记录与微信支付">听书项目 Day 15｜支付状态、购买记录与微信支付</a><time datetime="2026-09-09T10:05:41.000Z" title="发表于 2026-09-09 18:05:41">2026-09-09</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By 𝐺ℎ𝑎𝑜</span></div><div class="footer_custom_text"><i class="fas fa-shield-alt"></i> <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">晋ICP备2026009317号</a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@6.1.9/dist/fancybox/fancybox.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/node-snackbar@0.1.16/dist/snackbar.min.js"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.outerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 30000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        if (typeof svg === 'string') {
+          openSvgInNewTab({ source: svg, initViewBox })
+          return
+        }
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+
+    // Avoid binding multiple times on themeChange/pjax
+    if (wrap.__mermaidGestureBound) return
+    wrap.__mermaidGestureBound = true
+
+    // Helper: map client (viewport) coordinate -> viewBox coordinate
+    const clientToViewBox = (clientX, clientY) => {
+      const rect = svg.getBoundingClientRect()
+      const vb = wrap.__mermaidCurViewBox || getSvgViewBox(svg)
+      const x = vb[0] + (clientX - rect.left) * (vb[2] / rect.width)
+      const y = vb[1] + (clientY - rect.top) * (vb[3] / rect.height)
+      return { x, y, rect, vb }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      startCenter: null
+    }
+
+    const clampVb = vb => {
+      const init = wrap.__mermaidInitViewBox || vb
+      const minW = init[2] * 0.1
+      const maxW = init[2] * 10
+      const minH = init[3] * 0.1
+      const maxH = init[3] * 10
+      vb[2] = clamp(vb[2], minW, maxW)
+      vb[3] = clamp(vb[3], minH, maxH)
+      return vb
+    }
+
+    const setCurVb = vb => {
+      vb = clampVb(vb)
+      wrap.__mermaidCurViewBox = vb
+      setSvgViewBox(svg, vb)
+    }
+
+    const onPointerDown = e => {
+      // Allow only primary button for mouse
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      if (state.pointers.size === 1) {
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        state.startCenter = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 }
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      // Pan with 1 pointer
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = [...state.pointers.values()][0]
+        const prev = { x: e.clientX - e.movementX, y: e.clientY - e.movementY }
+        // movementX/Y unreliable on touch, compute from stored last position
+        const last = wrap.__mermaidLastSinglePointer || p
+        const dxClient = p.x - last.x
+        const dyClient = p.y - last.y
+        wrap.__mermaidLastSinglePointer = p
+
+        const { rect } = clientToViewBox(p.x, p.y)
+        const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        const dx = dxClient * (vb[2] / rect.width)
+        const dy = dyClient * (vb[3] / rect.height)
+        setCurVb([vb[0] - dx, vb[1] - dy, vb[2], vb[3]])
+        return
+      }
+
+      // Pinch zoom with 2 pointers
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist // dist bigger => zoom in (viewBox smaller)
+
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const centerClient = { x: cx, y: cy }
+
+        const pxy = clientToViewBox(centerClient.x, centerClient.y)
+        const cpx = pxy.x
+        const cpy = pxy.y
+
+        const vb = zoomAtPoint(state.startVb, factor, cpx, cpy)
+        setCurVb(vb)
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+        state.startCenter = null
+        wrap.__mermaidLastSinglePointer = null
+      } else if (state.pointers.size === 1) {
+        // reset single pointer baseline to avoid jump
+        wrap.__mermaidLastSinglePointer = [...state.pointers.values()][0]
+      }
+    }
+
+    // Wheel zoom (mouse/trackpad)
+    const onWheel = e => {
+      // ctrlKey on mac trackpad pinch; we treat both as zoom
+      e.preventDefault()
+      const delta = e.deltaY
+      const zoomFactor = delta > 0 ? 1.1 : 0.9
+      const { x, y } = clientToViewBox(e.clientX, e.clientY)
+      const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      setCurVb(zoomAtPoint(vb, zoomFactor, x, y))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (!init) return
+      wrap.__mermaidCurViewBox = init.slice()
+      setSvgViewBox(svg, init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown)
+    svg.addEventListener('pointermove', onPointerMove)
+    svg.addEventListener('pointerup', onPointerUpOrCancel)
+    svg.addEventListener('pointercancel', onPointerUpOrCancel)
+    svg.addEventListener('wheel', onWheel, { passive: false })
+    svg.addEventListener('dblclick', onDblClick)
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+
+      // Clear old render (themeChange/pjax will rerun)
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      item.__mermaidGestureBound = false
+
+      const config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+
+      // mermaid v9 and v10 compatibility
+      typeof renderFn === 'string' ? renderMermaid(renderFn) : renderFn.then(({ svg }) => renderMermaid(svg))
+    })
+  }
+
+  const codeToMermaid = () => {
+    const codeMermaidEle = document.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    if (true) codeToMermaid()
+    const $mermaid = document.querySelectorAll('#article-container .mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = {"placeholder":"留下你的评论吧～","requiredFields":["nick"],"enableImage":true,"enableEmoji":true,"enableMath":true,"enableCodeHighlight":true,"sortBy":"like","displayVote":true,"perPageRateLimit":6,"antiXSS":true,"spamCheck":"akismet","commentBg":"url(xxx图片链接)","masterName":"博主","mailNotify":true,"serverNotify":false,"qmsgNotify":"falese","hideAdmin":true}
+
+  const getCount = () => {
+    const countELement = document.getElementById('twikoo-count')
+    if(!countELement) return
+    twikoo.getCommentsCount({
+      envId: 'https://twikoo.gcblog.fun',
+      region: '',
+      urls: [window.location.pathname],
+      includeReply: false
+    }).then(res => {
+      countELement.textContent = res[0].count
+    }).catch(err => {
+      console.error(err)
+    })
+  }
+
+  const init = (el = document, path = location.pathname) => {
+    twikoo.init({
+      el: el.querySelector('#twikoo-wrap'),
+      envId: 'https://twikoo.gcblog.fun',
+      region: '',
+      onCommentLoaded: () => {
+        btf.loadLightbox(document.querySelectorAll('#twikoo .tk-content img:not(.tk-owo-emotion)'))
+      },
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || path
+    })
+
+    
+
+    isShuoshuo && (window.shuoshuoComment.destroyTwikoo = () => {
+      if (el.children.length) {
+        el.innerHTML = ''
+        el.classList.add('no-comment')
+      }
+    })
+  }
+
+  const loadTwikoo = (el, path) => {
+    if (typeof twikoo === 'object') setTimeout(() => init(el, path), 0)
+    else btf.getScript('https://cdn.jsdelivr.net/npm/twikoo@1.6.44/dist/twikoo.all.min.js').then(() => init(el, path))
+  }
+
+  if (isShuoshuo) {
+    'Twikoo' === 'Twikoo'
+      ? window.shuoshuoComment = { loadComment: loadTwikoo }
+      : window.loadOtherComment = loadTwikoo
+    return
+  }
+
+  if ('Twikoo' === 'Twikoo' || !false) {
+    if (false) btf.loadComment(document.getElementById('twikoo-wrap'), loadTwikoo)
+    else loadTwikoo()
+  } else {
+    window.loadOtherComment = loadTwikoo
+  }
+})()</script></div><script src="/js/article-like.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><i class="fas fa-spinner fa-pulse" id="loading-status" hidden="hidden"></i><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="local-search-input"><input placeholder="请输入关键词搜索" type="text"/></div><hr/><div id="local-search-results"></div><div class="ais-Pagination" id="local-search-pagination" style="display:none;"><ul class="ais-Pagination-list"></ul></div><div id="local-search-stats"></div></div><div id="search-mask"></div><script src="/js/search/local-search.js?v=5.5.4"></script></div></div></body></html>
