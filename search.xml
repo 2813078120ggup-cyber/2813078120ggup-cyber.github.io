@@ -187,11 +187,11 @@
             
             <tag> 听书项目 </tag>
             
+            <tag> 微信支付 </tag>
+            
             <tag> 充值 </tag>
             
             <tag> XXL-JOB </tag>
-            
-            <tag> 微信支付 </tag>
             
         </tags>
       
@@ -383,9 +383,9 @@
       
         <tags>
             
-            <tag> 听书项目 </tag>
-            
             <tag> Redis </tag>
+            
+            <tag> 听书项目 </tag>
             
             <tag> 排行榜 </tag>
             
@@ -581,9 +581,9 @@
       
         <tags>
             
-            <tag> 听书项目 </tag>
-            
             <tag> Redis </tag>
+            
+            <tag> 听书项目 </tag>
             
             <tag> 微信登录 </tag>
             
@@ -616,11 +616,11 @@
             
             <tag> 听书项目 </tag>
             
+            <tag> 接口开发 </tag>
+            
             <tag> 声音管理 </tag>
             
             <tag> 腾讯云点播 </tag>
-            
-            <tag> 接口开发 </tag>
             
         </tags>
       
@@ -651,9 +651,9 @@
             
             <tag> 专辑管理 </tag>
             
-            <tag> 接口开发 </tag>
-            
             <tag> MyBatis-Plus </tag>
+            
+            <tag> 接口开发 </tag>
             
         </tags>
       
@@ -923,9 +923,9 @@
             
             <tag> MyBatis-Plus </tag>
             
-            <tag> Spring Boot </tag>
-            
             <tag> 支付方式 </tag>
+            
+            <tag> Spring Boot </tag>
             
             <tag> Knife4j </tag>
             
@@ -954,9 +954,9 @@
       
         <tags>
             
-            <tag> 项目搭建 </tag>
-            
             <tag> 尚庭公寓 </tag>
+            
+            <tag> 项目搭建 </tag>
             
             <tag> MyBatis-Plus </tag>
             
