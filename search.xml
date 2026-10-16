@@ -227,9 +227,9 @@
             
             <tag> 向量检索 </tag>
             
-            <tag> Milvus </tag>
-            
             <tag> bge-m3 </tag>
+            
+            <tag> Milvus </tag>
             
             <tag> FastAPI </tag>
             
@@ -264,9 +264,9 @@
             
             <tag> 文档切割 </tag>
             
-            <tag> Milvus </tag>
-            
             <tag> bge-m3 </tag>
+            
+            <tag> Milvus </tag>
             
         </tags>
       
@@ -366,11 +366,11 @@
       
         <tags>
             
-            <tag> MinIO </tag>
-            
             <tag> 掌柜智库项目 </tag>
             
             <tag> RAG </tag>
+            
+            <tag> MinIO </tag>
             
             <tag> MinerU </tag>
             
@@ -405,9 +405,9 @@
             
             <tag> Python </tag>
             
-            <tag> LangGraph </tag>
-            
             <tag> MinerU </tag>
+            
+            <tag> LangGraph </tag>
             
         </tags>
       
@@ -1269,11 +1269,11 @@
             
             <tag> MyBatis-Plus </tag>
             
+            <tag> MinIO </tag>
+            
             <tag> 属性管理 </tag>
             
             <tag> 公寓管理 </tag>
-            
-            <tag> MinIO </tag>
             
         </tags>
       
