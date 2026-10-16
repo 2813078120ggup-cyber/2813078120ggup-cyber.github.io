@@ -109,9 +109,9 @@
             
             <tag> RAG </tag>
             
-            <tag> 向量检索 </tag>
-            
             <tag> Milvus </tag>
+            
+            <tag> 向量检索 </tag>
             
             <tag> MCP </tag>
             
@@ -225,13 +225,13 @@
             
             <tag> 掌柜智库项目 </tag>
             
-            <tag> 向量检索 </tag>
-            
             <tag> bge-m3 </tag>
             
             <tag> Milvus </tag>
             
             <tag> FastAPI </tag>
+            
+            <tag> 向量检索 </tag>
             
         </tags>
       
@@ -262,11 +262,11 @@
             
             <tag> RAG </tag>
             
-            <tag> 文档切割 </tag>
-            
             <tag> bge-m3 </tag>
             
             <tag> Milvus </tag>
+            
+            <tag> 文档切割 </tag>
             
         </tags>
       
@@ -318,9 +318,9 @@
             
             <tag> LangGraph </tag>
             
-            <tag> 文档切割 </tag>
-            
             <tag> 向量检索 </tag>
+            
+            <tag> 文档切割 </tag>
             
         </tags>
       
@@ -700,11 +700,11 @@
             
             <tag> 听书项目 </tag>
             
+            <tag> 订单 </tag>
+            
             <tag> Canal </tag>
             
             <tag> 缓存一致性 </tag>
-            
-            <tag> 订单 </tag>
             
         </tags>
       
@@ -931,9 +931,9 @@
             
             <tag> 听书项目 </tag>
             
-            <tag> 用户管理 </tag>
-            
             <tag> Elasticsearch </tag>
+            
+            <tag> 用户管理 </tag>
             
             <tag> 搜索 </tag>
             
@@ -1063,9 +1063,9 @@
             
             <tag> 听书项目 </tag>
             
-            <tag> Spring Cloud Alibaba </tag>
-            
             <tag> 专辑管理 </tag>
+            
+            <tag> Spring Cloud Alibaba </tag>
             
             <tag> 项目搭建 </tag>
             
@@ -1337,9 +1337,9 @@
             
             <tag> 尚庭公寓 </tag>
             
-            <tag> 项目搭建 </tag>
-            
             <tag> MyBatis-Plus </tag>
+            
+            <tag> 项目搭建 </tag>
             
             <tag> Spring Boot </tag>
             
