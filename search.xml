@@ -4,6 +4,25 @@
   
     
     <entry>
+      <title>直播间点赞系统设计</title>
+      <link href="/2026/10/17/%E7%9B%B4%E6%92%AD%E9%97%B4%E7%82%B9%E8%B5%9E%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/"/>
+      <url>/2026/10/17/%E7%9B%B4%E6%92%AD%E9%97%B4%E7%82%B9%E8%B5%9E%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/</url>
+      
+        <content type="html"><![CDATA[<h2 id="1-前端优化思路"><a href="#1-前端优化思路" class="headerlink" title="1. 前端优化思路"></a>1. 前端优化思路</h2><p>对前端来说，核心目标是：<strong>在保证体验的前提下尽可能降低请求数和 QPS</strong>。在百万级直播间场景中，主要涉及两个操作：</p><ul><li>用户的点赞行为</li><li>点赞总数的展示</li></ul><p>可以从以下几个方面做优化：</p><ol><li><p><strong>批量上报点赞</strong></p><p>用户每次点击并不立刻发起接口请求，而是在一个时间窗口内本地统计点击次数，<strong>合并为一次请求</strong>上报。</p><p>例如：前端每秒上报一次当前时间段内的点赞增量。这样可以将请求量压缩到原来的很小一部分，通常能减少 80% 以上的请求。</p></li><li><p><strong>点赞数展示做“近似实时”而非“完全实时”</strong></p><p>点赞总数的展示不要求完全精确，可以<strong>定时拉取</strong>，例如每隔 1 秒请求一次点赞量。</p><p>但在百万级直播间里，如果所有用户在同一时间点发起请求，后端压力依然很大。可以在前端引入<strong>随机抖动</strong>：在一个时间窗口内随机选择一个时刻发起请求，从而把请求时间打散，进一步削峰。</p></li><li><p><strong>限制用户操作 + 接入风控</strong></p><p>对单个用户在一定时间内的点赞次数设置上限，避免极端频率的操作。</p><p>同时接入风控，对疑似恶意账号（如刷量账号）进行限频、封禁等处理，从源头减少无效请求。</p></li></ol><hr><h2 id="2-后端优化思路"><a href="#2-后端优化思路" class="headerlink" title="2. 后端优化思路"></a>2. 后端优化思路</h2><p>对后端而言，可以围绕<strong>缓存 + 消息队列（削峰填谷）</strong> 来设计整体方案。</p><ol><li><p><strong>缓存层：拦截高频读写，减轻数据库压力</strong></p><ul><li><p>写入：点赞请求<strong>不直接入库</strong>，而是先写入缓存（如 Redis），进行计数统计。可以按固定时间间隔（如每 100ms）将增量持久化到数据库。这意味着一个直播间每秒最多只有 10 次持久化写请求，大幅减轻数据库压力。</p></li><li><p>读取：由于对点赞数的精度要求不高，可以直接从缓存中读取当前计数。</p><p>更进一步，收到点赞请求时就通过 Redis 的 <code>INCRBY</code> 等操作完成累加，这样读取点赞量时可以<strong>直接读缓存</strong>，不必访问数据库，也不必在每次读取时额外计算。</p></li></ul></li><li><p><strong>消息队列：进一步削峰填谷，做批量持久化</strong></p><p>经由缓存后，单个直播间的写请求已经被压缩到每秒不超过 10 次，但直播间总量大时，<strong>整体持久化压力依然可观</strong>。</p><p>例如，有 10 万个直播间，即便每个直播间每秒只有 10 次持久化操作，整体 QPS 仍可达 100 万。</p><p>这时可以通过 MQ 进一步削峰：</p><ul><li>将持久化请求写入 MQ，而不是直接写数据库。</li><li>以直播间 ID 作为 partition key，使<strong>同一直播间的点赞请求只会被同一个 partition 消费</strong>，保证顺序性。</li><li>Consumer 端可以按时间窗口（如 1 秒）对同一直播间的消息进行聚合统计，合并为一次数据库更新，从而再一次降低数据库写入频率。</li></ul></li><li><p><strong>智能推送：抽样事件，平衡体验和成本</strong></p><p>点赞量本身可以由前端定时拉取，但“点赞效果”如何呈现，也很关键。</p><p>设想在百万级直播间中，成千上万人同时点赞，如果把所有点赞事件都实时推送到每个客户端，设备会被海量消息“轰炸”，体验极差。</p><p>可以设计<strong>抽样推送机制</strong>：</p></li></ol><ul><li>通过定时任务（例如每 200ms）对这段时间内的点赞事件和点赞总量做采样。</li><li>按一定抽样率（1% 或 0.1%，甚至更低）随机选取少部分点赞事件进行推送，抽样率可以根据当前点赞事件量动态调整。</li><li>这样既能保证用户看到“有人在不断点赞”的动态效果，又能在成本上减少 99% 以上的推送量，大幅降低系统负载。</li></ul><p>作者：EnigmaGcl<br>链接：<a href="https://juejin.cn/post/7598011274687152128">https://juejin.cn/post/7598011274687152128</a><br>来源：稀土掘金</p>]]></content>
+      
+      
+      
+        <tags>
+            
+            <tag> 架构 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>hot100</title>
       <link href="/2026/10/12/hot100/"/>
       <url>/2026/10/12/hot100/</url>
@@ -37,9 +56,9 @@
             
             <tag> 掌柜智库项目 </tag>
             
-            <tag> RAG </tag>
-            
             <tag> LangGraph </tag>
+            
+            <tag> RAG </tag>
             
             <tag> Milvus </tag>
             
@@ -109,9 +128,9 @@
             
             <tag> RAG </tag>
             
-            <tag> Milvus </tag>
-            
             <tag> 向量检索 </tag>
+            
+            <tag> Milvus </tag>
             
             <tag> MCP </tag>
             
@@ -190,9 +209,9 @@
             
             <tag> 掌柜智库项目 </tag>
             
-            <tag> RAG </tag>
-            
             <tag> LangGraph </tag>
+            
+            <tag> RAG </tag>
             
             <tag> FastAPI </tag>
             
@@ -225,13 +244,13 @@
             
             <tag> 掌柜智库项目 </tag>
             
+            <tag> 向量检索 </tag>
+            
             <tag> bge-m3 </tag>
             
             <tag> Milvus </tag>
             
             <tag> FastAPI </tag>
-            
-            <tag> 向量检索 </tag>
             
         </tags>
       
@@ -262,11 +281,11 @@
             
             <tag> RAG </tag>
             
+            <tag> 文档切割 </tag>
+            
             <tag> bge-m3 </tag>
             
             <tag> Milvus </tag>
-            
-            <tag> 文档切割 </tag>
             
         </tags>
       
@@ -314,13 +333,13 @@
             
             <tag> 掌柜智库项目 </tag>
             
-            <tag> RAG </tag>
-            
             <tag> LangGraph </tag>
             
-            <tag> 向量检索 </tag>
+            <tag> RAG </tag>
             
             <tag> 文档切割 </tag>
+            
+            <tag> 向量检索 </tag>
             
         </tags>
       
@@ -368,11 +387,11 @@
             
             <tag> 掌柜智库项目 </tag>
             
-            <tag> RAG </tag>
+            <tag> MinerU </tag>
             
             <tag> MinIO </tag>
             
-            <tag> MinerU </tag>
+            <tag> RAG </tag>
             
             <tag> Prompt工程 </tag>
             
@@ -403,11 +422,11 @@
             
             <tag> 掌柜智库项目 </tag>
             
-            <tag> Python </tag>
+            <tag> LangGraph </tag>
             
             <tag> MinerU </tag>
             
-            <tag> LangGraph </tag>
+            <tag> Python </tag>
             
         </tags>
       
@@ -436,9 +455,9 @@
             
             <tag> 掌柜智库项目 </tag>
             
-            <tag> uv </tag>
-            
             <tag> Python </tag>
+            
+            <tag> uv </tag>
             
             <tag> RAG </tag>
             
@@ -700,11 +719,11 @@
             
             <tag> 听书项目 </tag>
             
-            <tag> 订单 </tag>
-            
             <tag> Canal </tag>
             
             <tag> 缓存一致性 </tag>
+            
+            <tag> 订单 </tag>
             
         </tags>
       
@@ -931,9 +950,9 @@
             
             <tag> 听书项目 </tag>
             
-            <tag> Elasticsearch </tag>
-            
             <tag> 用户管理 </tag>
+            
+            <tag> Elasticsearch </tag>
             
             <tag> 搜索 </tag>
             
@@ -1063,9 +1082,9 @@
             
             <tag> 听书项目 </tag>
             
-            <tag> 专辑管理 </tag>
-            
             <tag> Spring Cloud Alibaba </tag>
+            
+            <tag> 专辑管理 </tag>
             
             <tag> 项目搭建 </tag>
             
@@ -1269,11 +1288,11 @@
             
             <tag> MyBatis-Plus </tag>
             
-            <tag> MinIO </tag>
-            
             <tag> 属性管理 </tag>
             
             <tag> 公寓管理 </tag>
+            
+            <tag> MinIO </tag>
             
         </tags>
       
@@ -1337,9 +1356,9 @@
             
             <tag> 尚庭公寓 </tag>
             
-            <tag> MyBatis-Plus </tag>
-            
             <tag> 项目搭建 </tag>
+            
+            <tag> MyBatis-Plus </tag>
             
             <tag> Spring Boot </tag>
             
